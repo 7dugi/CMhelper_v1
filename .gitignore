@@ -1,28 +1,36 @@
-# Dependency directories
-node_modules/
-jspm_packages/
-web_modules/
-
-# Python Virtual Environment
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
 .venv/
 venv/
 ENV/
 env/
-__pycache__/
-*.pyc
 
-# Local development configuration
+# ── Database (데이터는 로컬에만 보관) ─────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+CMhelper_web/backend/data/
+
+# ── Node / Frontend ───────────────────────────────────────────────────────────
+node_modules/
+dist/
+.cache/
+jspm_packages/
+web_modules/
+
+# ── 중복 scaffold 폴더 (실제 사용 안 함) ──────────────────────────────────────
+CMhelper_web/frontend/CMhelper_webfrontend/
+
+# ── 환경 변수 ─────────────────────────────────────────────────────────────────
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*.local
 
-# IDE configurations
+# ── IDE / OS ──────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 .antigravity/
-
-# OS metadata
 .DS_Store
 Thumbs.db
