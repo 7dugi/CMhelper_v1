@@ -255,6 +255,7 @@ function Dashboard({ activeFields }) {
   const [selected, setSelected]   = useState(null);
   const [modalMode, setModalMode] = useState(null);
   const [noteText, setNoteText]   = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: 'id', dir: 'desc' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -335,8 +336,26 @@ function Dashboard({ activeFields }) {
       });
     }
 
+    // Sort
+    list.sort((a, b) => {
+      let va = getVal(a, { name: sortConfig.key });
+      let vb = getVal(b, { name: sortConfig.key });
+      if (va == null) va = '';
+      if (vb == null) vb = '';
+      if (va < vb) return sortConfig.dir === 'asc' ? -1 : 1;
+      if (va > vb) return sortConfig.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
     return list;
-  }, [customers, search, filter]);
+  }, [customers, search, filter, sortConfig]);
+
+  const handleSort = (key) => {
+    setSortConfig(prev => {
+      if (prev.key === key) return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+      return { key, dir: 'asc' };
+    });
+  };
 
   const openCreate = () => setModalMode('create');
   const openEdit   = (c, e) => { e.stopPropagation(); setModalMode('edit'); setSelected(c); };
@@ -462,7 +481,24 @@ function Dashboard({ activeFields }) {
             <table>
               <thead>
                 <tr>
-                  {activeFields.map(f => <th key={f.id}>{f.label}</th>)}
+                  {activeFields.map(f => {
+                    const sortable = ['name', 'company', 'contract_date', 'expiry_date'].includes(f.name);
+                    return (
+                      <th key={f.id} 
+                          onClick={() => sortable && handleSort(f.name)}
+                          style={{ cursor: sortable ? 'pointer' : 'default', userSelect: 'none' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {f.label}
+                          {sortable && (
+                            <span style={{ color: sortConfig.key === f.name ? 'var(--primary)' : 'var(--border)', fontSize: '10px', display: 'flex', flexDirection: 'column', lineHeight: '8px' }}>
+                              <ChevronUp size={12} color={sortConfig.key === f.name && sortConfig.dir === 'asc' ? 'var(--primary)' : 'var(--text-3)'} style={{ marginBottom: '-4px' }} />
+                              <ChevronDown size={12} color={sortConfig.key === f.name && sortConfig.dir === 'desc' ? 'var(--primary)' : 'var(--text-3)'} />
+                            </span>
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
                   <th style={{ textAlign:'center' }}>관리</th>
                 </tr>
               </thead>
