@@ -11,8 +11,8 @@ import * as api from './api';
 
 /* ─── constants ─────────────────────────────────────────────────────── */
 const SYSTEM_KEYS = new Set([
-  'name','company','contract_car','contract_date','contract_months',
-  'expiry_date','capital','supplies_work','insurance_active',
+  'name','contact','region','company','contract_car','contract_date','contract_months',
+  'expiry_date','capital','product_type','supplies_work','insurance_active',
   'dealer_info','is_prospect','is_contracted','anniversary','memo',
 ]);
 

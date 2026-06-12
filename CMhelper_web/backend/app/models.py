@@ -25,7 +25,9 @@ class Customer(Base):
 
     id               = Column(Integer, primary_key=True, autoincrement=True)
     # ── System fixed columns ───────────────────────────────────────────────
-    name             = Column(String, nullable=False, index=True)
+    name             = Column(String, index=True)
+    contact          = Column(String, nullable=True)
+    region           = Column(String, nullable=True)
     company          = Column(String, nullable=True, index=True)
     contract_car     = Column(String, nullable=True, index=True)
     months           = Column(Integer, nullable=True)   # legacy – kept for compat
@@ -33,6 +35,7 @@ class Customer(Base):
     contract_months  = Column(Integer, nullable=True)   # 24 / 36 / 48 / 60
     expiry_date      = Column(String, nullable=True)    # computed YYYY-MM-DD
     capital          = Column(String, nullable=True)
+    product_type     = Column(String, nullable=True)
     supplies_work    = Column(String, nullable=True)
     insurance_active = Column(Boolean, default=False)
     dealer_info      = Column(String, nullable=True)

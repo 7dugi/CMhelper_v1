@@ -24,9 +24,9 @@ class FieldDefCreate(FieldDefBase):
         if not re.match(r'^[a-z][a-z0-9_]*$', v):
             raise ValueError("name must start with a letter and contain only lowercase letters, digits or underscores")
         reserved = {
-            "id","name","company","contract_car","months",
+            "id","name","contact","region","company","contract_car","months",
             "contract_date","contract_months","expiry_date",
-            "capital","supplies_work","insurance_active","dealer_info",
+            "capital","product_type","supplies_work","insurance_active","dealer_info",
             "is_prospect","is_contracted","anniversary","memo",
             "extra","created_at","updated_at",
         }
@@ -64,12 +64,15 @@ class ConsultationOut(ConsultationCreate):
 
 class CustomerBase(BaseModel):
     name:             str
+    contact:          Optional[str]  = None
+    region:           Optional[str]  = None
     company:          Optional[str]  = None
     contract_car:     Optional[str]  = None
     contract_date:    Optional[str]  = None   # YYYY-MM-DD
     contract_months:  Optional[int]  = None   # 24 / 36 / 48 / 60
     expiry_date:      Optional[str]  = None   # computed YYYY-MM-DD
     capital:          Optional[str]  = None
+    product_type:     Optional[str]  = None
     supplies_work:    Optional[str]  = None
     insurance_active: bool           = False
     dealer_info:      Optional[str]  = None
@@ -84,11 +87,14 @@ class CustomerCreate(CustomerBase):
 
 class CustomerUpdate(BaseModel):
     name:             Optional[str]  = None
+    contact:          Optional[str]  = None
+    region:           Optional[str]  = None
     company:          Optional[str]  = None
     contract_car:     Optional[str]  = None
     contract_date:    Optional[str]  = None
     contract_months:  Optional[int]  = None
     capital:          Optional[str]  = None
+    product_type:     Optional[str]  = None
     supplies_work:    Optional[str]  = None
     insurance_active: Optional[bool] = None
     dealer_info:      Optional[str]  = None

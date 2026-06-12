@@ -27,9 +27,13 @@ def run_migrations(eng) -> None:
         existing = {row[1] for row in result.fetchall()}
 
         new_cols = [
+            ("contact",         "VARCHAR"),
+            ("region",          "VARCHAR"),
             ("contract_date",   "VARCHAR"),
             ("contract_months", "INTEGER"),
             ("expiry_date",     "VARCHAR"),
+            ("capital",         "VARCHAR"),
+            ("product_type",    "VARCHAR"),
             ("is_prospect",     "BOOLEAN DEFAULT 0"),
             ("is_contracted",   "BOOLEAN DEFAULT 0"),
             ("anniversary",     "VARCHAR"),
@@ -185,8 +189,8 @@ async def api_excel_import(
     df.columns = [str(c).strip() for c in df.columns]
 
     system_keys = {
-        "name","company","contract_car","contract_date","contract_months",
-        "capital","supplies_work","insurance_active","dealer_info",
+        "name","contact","region","company","contract_car","contract_date","contract_months",
+        "capital","product_type","supplies_work","insurance_active","dealer_info",
         "is_prospect","is_contracted","anniversary","memo",
     }
 
@@ -210,7 +214,12 @@ async def api_excel_import(
                     val = str(val).strip()
 
                 if val is not None:
-                    if db_f in ("contract_months",):
+                    if db_f in ("contract_date", "anniversary") and val:
+                        import re
+                        clean_val = re.sub(r"[^\d]", "", str(val))
+                        if len(clean_val) == 8:
+                            val = f"{clean_val[:4]}-{clean_val[4:6]}-{clean_val[6:]}"
+                    elif db_f in ("contract_months",):
                         try:
                             val = int(float(val))
                         except Exception:
@@ -234,11 +243,14 @@ async def api_excel_import(
 
             crud.create_customer(db, schemas.CustomerCreate(
                 name=sys_data.get("name", ""),
+                contact=sys_data.get("contact"),
+                region=sys_data.get("region"),
                 company=sys_data.get("company"),
                 contract_car=sys_data.get("contract_car"),
                 contract_date=sys_data.get("contract_date"),
                 contract_months=sys_data.get("contract_months"),
                 capital=sys_data.get("capital"),
+                product_type=sys_data.get("product_type"),
                 supplies_work=sys_data.get("supplies_work"),
                 insurance_active=sys_data.get("insurance_active", False) or False,
                 dealer_info=sys_data.get("dealer_info"),
