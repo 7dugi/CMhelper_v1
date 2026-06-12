@@ -75,6 +75,15 @@ app.add_middleware(
 import os
 import uuid
 import shutil
+from supabase import create_client, Client
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+else:
+    supabase = None
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -84,10 +93,21 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 async def api_upload(file: UploadFile = File(...)):
     ext = file.filename.split('.')[-1]
     new_filename = f"{uuid.uuid4().hex}.{ext}"
-    file_path = os.path.join(UPLOAD_DIR, new_filename)
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    return {"url": f"/uploads/{new_filename}"}
+    file_bytes = await file.read()
+
+    if supabase:
+        res = supabase.storage.from_("estimates").upload(
+            path=new_filename,
+            file=file_bytes,
+            file_options={"content-type": file.content_type}
+        )
+        public_url = supabase.storage.from_("estimates").get_public_url(new_filename)
+        return {"url": public_url}
+    else:
+        file_path = os.path.join(UPLOAD_DIR, new_filename)
+        with open(file_path, "wb") as buffer:
+            buffer.write(file_bytes)
+        return {"url": f"/uploads/{new_filename}"}
 
 # ── API endpoints ──────────────────────────────────────────────────────────────
 

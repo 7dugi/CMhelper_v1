@@ -1,4 +1,4 @@
-export const BASE_URL = `http://${window.location.hostname}:8002`;
+export const BASE_URL = import.meta.env.PROD ? "" : `http://${window.location.hostname}:8002`;
 const API = `${BASE_URL}/api`;
 async function req(path, opts = {}) {
   const res = await fetch(`${API}${path}`, opts);
