@@ -13,7 +13,7 @@ import * as api from './api';
 const SYSTEM_KEYS = new Set([
   'name','company','contract_car','contract_date','contract_months',
   'expiry_date','capital','supplies_work','insurance_active',
-  'dealer_info','is_prospect','anniversary','memo',
+  'dealer_info','is_prospect','is_contracted','anniversary','memo',
 ]);
 
 /* ─── helpers ────────────────────────────────────────────────────────── */
@@ -170,6 +170,7 @@ function CustomerForm({ fields, initial, onSave, onClose }) {
                 type={fd.field_type === 'number' ? 'number' : fd.field_type === 'date' ? 'date' : 'text'}
                 placeholder={fd.field_type === 'date' ? '' : fd.label}
                 value={form[fd.name] ?? ''}
+                onClick={e => { if (fd.field_type === 'date' && e.target.showPicker) e.target.showPicker(); }}
                 onChange={e => set(fd.name, e.target.value)}
                 required={fd.name === 'name'} />
             </div>
@@ -420,6 +421,12 @@ function Dashboard({ activeFields }) {
                              : <span className="badge badge-no">일반</span>}
                         </td>
                       );
+                      if (f.name === 'is_contracted') return (
+                        <td key={f.id}>
+                          {v ? <span className="badge badge-ok"><CheckCircle size={10}/> 기계약</span>
+                             : <span className="badge badge-no">미계약</span>}
+                        </td>
+                      );
                       if (f.field_type === 'boolean') return (
                         <td key={f.id}>
                           <span className={v ? 'badge badge-ok' : 'badge badge-no'}>
@@ -469,6 +476,7 @@ function Dashboard({ activeFields }) {
                       <span className="val">
                         {f.name === 'expiry_date' ? <ExpiryBadge dateStr={v} />
                          : f.name === 'is_prospect' ? (v ? <span className="badge badge-warn"><Star size={10}/> 가망고객</span> : <span className="badge badge-no">일반 고객</span>)
+                         : f.name === 'is_contracted' ? (v ? <span className="badge badge-ok"><CheckCircle size={10}/> 기계약 고객</span> : <span className="badge badge-no">미계약 고객</span>)
                          : f.field_type === 'boolean' ? <span className={v ? 'badge badge-ok' : 'badge badge-no'}>{f.name === 'insurance_active' ? (v ? '가입' : '미가입') : (v ? 'Y' : 'N')}</span>
                          : f.name === 'contract_months' && v ? `${v}개월`
                          : v != null ? String(v) : '—'}

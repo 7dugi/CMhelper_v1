@@ -31,6 +31,7 @@ def run_migrations(eng) -> None:
             ("contract_months", "INTEGER"),
             ("expiry_date",     "VARCHAR"),
             ("is_prospect",     "BOOLEAN DEFAULT 0"),
+            ("is_contracted",   "BOOLEAN DEFAULT 0"),
             ("anniversary",     "VARCHAR"),
         ]
         for col_name, col_type in new_cols:
@@ -186,7 +187,7 @@ async def api_excel_import(
     system_keys = {
         "name","company","contract_car","contract_date","contract_months",
         "capital","supplies_work","insurance_active","dealer_info",
-        "is_prospect","anniversary","memo",
+        "is_prospect","is_contracted","anniversary","memo",
     }
 
     success = skipped = 0
@@ -218,6 +219,8 @@ async def api_excel_import(
                         val = val.lower() in ("1", "true", "y", "yes", "예", "가입")
                     elif db_f == "is_prospect":
                         val = val.lower() in ("1", "true", "y", "yes", "예", "가망")
+                    elif db_f == "is_contracted":
+                        val = val.lower() in ("1", "true", "y", "yes", "예", "기계약")
 
                 if db_f in system_keys:
                     sys_data[db_f] = val
@@ -240,6 +243,7 @@ async def api_excel_import(
                 insurance_active=sys_data.get("insurance_active", False) or False,
                 dealer_info=sys_data.get("dealer_info"),
                 is_prospect=sys_data.get("is_prospect", False) or False,
+                is_contracted=sys_data.get("is_contracted", False) or False,
                 anniversary=sys_data.get("anniversary"),
                 memo=sys_data.get("memo"),
                 extra=extra_data,
