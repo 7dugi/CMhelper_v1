@@ -7,6 +7,7 @@ from typing import List
 
 import pandas as pd
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -37,6 +38,9 @@ def run_migrations(eng) -> None:
             ("is_prospect",     "BOOLEAN DEFAULT 0"),
             ("is_contracted",   "BOOLEAN DEFAULT 0"),
             ("anniversary",     "VARCHAR"),
+            ("memo",            "VARCHAR"),
+            ("estimate_image",  "VARCHAR"),
+            ("extra",           "TEXT DEFAULT '{}'"),
         ]
         for col_name, col_type in new_cols:
             if col_name not in existing:
@@ -63,10 +67,25 @@ app = FastAPI(title="CMhelper v1", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
+@app.post("/api/upload")
+async def api_upload(file: UploadFile = File(...)):
+    ext = file.filename.split('.')[-1]
+    new_filename = f"{uuid.uuid4().hex}.{ext}"
+    file_path = os.path.join(UPLOAD_DIR, new_filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    return {"url": f"/uploads/{new_filename}"}
+
+# ── API endpoints ──────────────────────────────────────────────────────────────
 
 # ── Health ─────────────────────────────────────────────────────────────────────
 @app.get("/")
@@ -191,7 +210,7 @@ async def api_excel_import(
     system_keys = {
         "name","contact","region","company","contract_car","contract_date","contract_months",
         "capital","product_type","supplies_work","insurance_active","dealer_info",
-        "is_prospect","is_contracted","anniversary","memo",
+        "is_prospect","is_contracted","anniversary","memo","estimate_image",
     }
 
     success = skipped = 0

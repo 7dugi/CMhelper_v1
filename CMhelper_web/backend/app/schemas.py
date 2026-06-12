@@ -27,7 +27,7 @@ class FieldDefCreate(FieldDefBase):
             "id","name","contact","region","company","contract_car","months",
             "contract_date","contract_months","expiry_date",
             "capital","product_type","supplies_work","insurance_active","dealer_info",
-            "is_prospect","is_contracted","anniversary","memo",
+            "is_prospect","is_contracted","anniversary","memo","estimate_image",
             "extra","created_at","updated_at",
         }
         if v in reserved:
@@ -80,7 +80,8 @@ class CustomerBase(BaseModel):
     is_contracted:    bool           = False
     anniversary:      Optional[str]  = None
     memo:             Optional[str]  = None
-    extra:            Dict[str, Any] = {}
+    estimate_image:   Optional[str]  = None
+    extra:            Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 class CustomerCreate(CustomerBase):
     pass
@@ -102,6 +103,7 @@ class CustomerUpdate(BaseModel):
     is_contracted:    Optional[bool] = None
     anniversary:      Optional[str]  = None
     memo:             Optional[str]  = None
+    estimate_image:   Optional[str]  = None
     extra:            Optional[Dict[str, Any]] = None
 
 class CustomerOut(CustomerBase):

@@ -43,6 +43,7 @@ class Customer(Base):
     is_contracted    = Column(Boolean, default=False)
     anniversary      = Column(String, nullable=True)
     memo             = Column(String, nullable=True)
+    estimate_image   = Column(String, nullable=True)
     # ── Flexible bag for user-added fields ────────────────────────────────
     extra            = Column(JSON, default=dict, nullable=False)
 

@@ -186,6 +186,37 @@ function CustomerForm({ fields, initial, onSave, onClose }) {
             );
           }
 
+          // ── Image Upload ─────────────────────────────────────────────
+          if (fd.field_type === 'image') {
+            return (
+              <div className="form-row" key={fd.id}>
+                <label className="form-label">{fd.label}</label>
+                {form[fd.name] ? (
+                  <div style={{ display:'flex', alignItems:'center', gap:'1rem' }}>
+                    <img src={`http://localhost:8002${form[fd.name]}`} alt="첨부" style={{ width:80, height:80, objectFit:'cover', borderRadius:6, border:'1px solid var(--border)' }} />
+                    <button type="button" className="btn btn-ghost" style={{ padding:'0.4rem 0.8rem', fontSize:'.85rem' }} onClick={() => set(fd.name, null)}>삭제</button>
+                  </div>
+                ) : (
+                  <input type="file" accept="image/*" className="form-input" style={{ padding:'.4rem' }} onChange={async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    try {
+                      const res = await fetch('http://localhost:8002/api/upload', {
+                        method: 'POST', body: formData
+                      });
+                      const data = await res.json();
+                      set(fd.name, data.url);
+                    } catch (err) {
+                      alert('이미지 업로드에 실패했습니다.');
+                    }
+                  }} />
+                )}
+              </div>
+            );
+          }
+
           // ── Default: text / number / date ────────────────────────────
           return (
             <div className="form-row" key={fd.id}>
@@ -502,6 +533,7 @@ function Dashboard({ activeFields }) {
                       <span className="lbl">{f.label}</span>
                       <span className="val">
                         {f.name === 'expiry_date' ? <ExpiryBadge dateStr={v} />
+                         : f.field_type === 'image' ? (v ? <a href={`http://localhost:8002${v}`} target="_blank" rel="noreferrer"><img src={`http://localhost:8002${v}`} alt="첨부" style={{ maxHeight: 150, borderRadius: 8, border:'1px solid var(--border)', marginTop: 4, display: 'block' }} /></a> : <span style={{color:'var(--text-3)'}}>미첨부</span>)
                          : f.name === 'is_prospect' ? (v ? <span className="badge badge-warn"><Star size={10}/> 가망고객</span> : <span className="badge badge-no">일반 고객</span>)
                          : f.name === 'is_contracted' ? (v ? <span className="badge badge-ok"><CheckCircle size={10}/> 기계약 고객</span> : <span className="badge badge-no">미계약 고객</span>)
                          : f.field_type === 'boolean' ? <span className={v ? 'badge badge-ok' : 'badge badge-no'}>{f.name === 'insurance_active' ? (v ? '가입' : '미가입') : (v ? 'Y' : 'N')}</span>
