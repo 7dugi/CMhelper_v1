@@ -1,4 +1,4 @@
-const API = 'http://localhost:8001/api';
+const API = 'http://localhost:8002/api';
 
 async function req(path, opts = {}) {
   const res = await fetch(`${API}${path}`, opts);
