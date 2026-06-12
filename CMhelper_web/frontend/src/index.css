@@ -124,7 +124,7 @@ button, input, select, textarea { font-family:inherit; }
 .foot-info span   { font-size:.72rem; color:var(--text-3); }
 
 /* ── Main Content ────────────────────────────────────────────────────── */
-.main { margin-left:240px; flex:1; padding:2.5rem 3rem; }
+.main { margin-left:240px; flex:1; min-width:0; padding:2.5rem 3rem; }
 
 /* ── Page Header ─────────────────────────────────────────────────────── */
 .page-hd {

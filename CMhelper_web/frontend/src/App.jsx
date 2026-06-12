@@ -114,10 +114,37 @@ function CustomerForm({ fields, initial, onSave, onClose }) {
             );
           }
 
+          // ── Skip is_contracted to render it alongside is_prospect ───
+          if (fd.name === 'is_contracted') return null;
+
           // ── Boolean toggle ───────────────────────────────────────────
           if (fd.field_type === 'boolean') {
+            if (fd.name === 'is_prospect') {
+              const contractField = fields.find(f => f.name === 'is_contracted');
+              return (
+                <div className="form-row form-grid-2" key={fd.id}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--bg-input)', padding:'0.7rem 0.95rem', borderRadius:'var(--radius-md)', border:'1px solid var(--border)' }}>
+                    <label className="form-label" style={{ marginBottom:0 }}>{fd.label}</label>
+                    <label className="toggle">
+                      <input type="checkbox" checked={!!form[fd.name]} onChange={e => set(fd.name, e.target.checked)} />
+                      <span className="track" />
+                    </label>
+                  </div>
+                  {contractField && (
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--bg-input)', padding:'0.7rem 0.95rem', borderRadius:'var(--radius-md)', border:'1px solid var(--border)' }}>
+                      <label className="form-label" style={{ marginBottom:0 }}>{contractField.label}</label>
+                      <label className="toggle">
+                        <input type="checkbox" checked={!!form[contractField.name]} onChange={e => set(contractField.name, e.target.checked)} />
+                        <span className="track" />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
-              <div className="form-row" key={fd.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div className="form-row" key={fd.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--bg-input)', padding:'0.7rem 0.95rem', borderRadius:'var(--radius-md)', border:'1px solid var(--border)' }}>
                 <label className="form-label" style={{ marginBottom:0 }}>{fd.label}</label>
                 <label className="toggle">
                   <input type="checkbox" checked={!!form[fd.name]}

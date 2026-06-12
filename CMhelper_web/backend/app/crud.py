@@ -51,8 +51,8 @@ _SYSTEM_FIELDS = [
     dict(name="dealer_info",      label="담당 딜러+딜러사",     field_type="text",     sort_order=10),
     dict(name="is_prospect",      label="가망고객",            field_type="boolean",  sort_order=11),
     dict(name="is_contracted",    label="기계약 고객",          field_type="boolean",  sort_order=12),
-    dict(name="anniversary",      label="기념일",              field_type="date",     sort_order=13),
-    dict(name="memo",             label="기타 메모사항",       field_type="textarea", sort_order=14),
+    dict(name="memo",             label="기타 메모사항",       field_type="textarea", sort_order=13),
+    dict(name="anniversary",      label="기념일",              field_type="date",     sort_order=14),
 ]
 
 _SYSTEM_NAMES      = {f["name"] for f in _SYSTEM_FIELDS}
