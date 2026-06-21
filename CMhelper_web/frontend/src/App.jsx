@@ -13,7 +13,7 @@ import * as api from './api';
 const SYSTEM_KEYS = new Set([
   'name','contact','region','company','contract_car','contract_date','contract_months',
   'expiry_date','capital','product_type','supplies_work','insurance_active',
-  'dealer_info','is_prospect','is_contracted','anniversary','memo',
+  'dealer_info','is_prospect','is_contracted','anniversary','memo','sent_quotes',
 ]);
 
 /* ─── helpers ────────────────────────────────────────────────────────── */
@@ -56,18 +56,28 @@ function ExpiryBadge({ dateStr }) {
 }
 
 /* ─── CustomerForm ───────────────────────────────────────────────────── */
-function CustomerForm({ fields, initial, onSave, onClose }) {
+function CustomerForm({ formType, fields, initial, onSave, onClose }) {
+  const visibleFields = useMemo(() => {
+    return fields.filter(fd => fd.target_type === 'common' || fd.target_type === formType);
+  }, [fields, formType]);
+
   const [form, setForm] = useState(() => {
     const f = {};
-    fields.forEach(fd => {
+    visibleFields.forEach(fd => {
       const v = initial ? getVal(initial, fd) : null;
       if (fd.field_type === 'boolean') f[fd.name] = v ?? false;
+      else if (fd.field_type === 'image_gallery') f[fd.name] = v ?? [];
       else if (fd.field_type === 'number') f[fd.name] = v ?? '';
       else f[fd.name] = v ?? '';
     });
+    if (!initial) {
+      
+      if (formType === 'contracted') f.is_contracted = true;
+    }
     return f;
   });
   const [saving, setSaving] = useState(false);
+  const [initialConsultation, setInitialConsultation] = useState('');
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -79,7 +89,7 @@ function CustomerForm({ fields, initial, onSave, onClose }) {
     setSaving(true);
     try {
       const sysData = {}, extra = {};
-      fields.forEach(fd => {
+      visibleFields.forEach(fd => {
         if (fd.name === 'expiry_date') return; // computed by backend
         let v = form[fd.name];
         if (v === '' || v === undefined) v = null;
@@ -88,6 +98,9 @@ function CustomerForm({ fields, initial, onSave, onClose }) {
         if (SYSTEM_KEYS.has(fd.name)) sysData[fd.name] = v;
         else extra[fd.name] = v;
       });
+      if (!initial && formType === 'prospect' && initialConsultation.trim()) {
+        sysData.initial_consultation = initialConsultation.trim();
+      }
       await onSave({ ...sysData, extra });
     } catch (err) {
       alert(err.message);
@@ -99,7 +112,7 @@ function CustomerForm({ fields, initial, onSave, onClose }) {
   return (
     <form onSubmit={handleSubmit}>
       <div className="modal-body">
-        {fields.map(fd => {
+        {visibleFields.map(fd => {
           // ── Computed field: expiry_date ──────────────────────────────
           if (fd.name === 'expiry_date') {
             return (
@@ -185,6 +198,45 @@ function CustomerForm({ fields, initial, onSave, onClose }) {
               </div>
             );
           }
+          // ── Image Gallery (Sent Quotes) ──
+          if (fd.field_type === 'image_gallery') {
+            const urls = form[fd.name] || [];
+            return (
+              <div className="form-row" key={fd.id}>
+                <label className="form-label">{fd.label}</label>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'1rem', marginBottom:'0.5rem' }}>
+                  {urls.map((url, idx) => (
+                    <div key={idx} style={{ position:'relative' }}>
+                      <img src={`${api.BASE_URL}${url}`} alt="첨부" style={{ width:80, height:80, objectFit:'cover', borderRadius:6, border:'1px solid var(--border)' }} />
+                      <button type="button" className="btn btn-danger btn-icon" style={{ position:'absolute', top:-5, right:-5, width:20, height:20, padding:0, minHeight:20 }} onClick={() => set(fd.name, urls.filter((_, i) => i !== idx))}><X size={12}/></button>
+                    </div>
+                  ))}
+                  <label style={{ width:80, height:80, border:'1px dashed var(--border)', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'var(--text-3)' }}>
+                    <Plus size={24} />
+                    <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={async (e) => {
+                      const files = Array.from(e.target.files);
+                      if (!files.length) return;
+                      const newUrls = [...urls];
+                      for (const file of files) {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        try {
+                          const res = await fetch(`${api.BASE_URL}/api/upload`, { method: 'POST', body: formData });
+                          const data = await res.json();
+                          newUrls.push(data.url);
+                        } catch (err) {
+                          alert('이미지 업로드에 실패했습니다.');
+                        }
+                      }
+                      set(fd.name, newUrls);
+                    }} />
+                  </label>
+                </div>
+              </div>
+            );
+          }
+
+
 
           // ── Image Upload ─────────────────────────────────────────────
           if (fd.field_type === 'image') {
@@ -236,6 +288,16 @@ function CustomerForm({ fields, initial, onSave, onClose }) {
         })}
       </div>
 
+      {!initial && formType === 'prospect' && (
+        <div className="modal-body" style={{ marginTop: 0, paddingTop: 0 }}>
+          <div className="form-row">
+            <label className="form-label">초기 상담 내역 (옵션)</label>
+            <textarea className="form-textarea" rows={4} placeholder="첫 상담 내용을 입력하세요 (날짜별 내역에 기록됩니다)"
+              value={initialConsultation} onChange={e => setInitialConsultation(e.target.value)} />
+          </div>
+        </div>
+      )}
+
       <div className="modal-ft">
         <button type="button" className="btn btn-ghost" onClick={onClose}>취소</button>
         <button type="submit" className="btn btn-primary" disabled={saving}>
@@ -280,6 +342,7 @@ function Dashboard({ activeFields }) {
 
   const stats = useMemo(() => {
     const prospects   = customers.filter(c => c.is_prospect).length;
+    const contracted  = customers.filter(c => !c.is_prospect).length;
     const expiry1m    = customers.filter(c => {
       if (!c.expiry_date) return false;
       const e = new Date(c.expiry_date);
@@ -290,7 +353,7 @@ function Dashboard({ activeFields }) {
       const e = new Date(c.expiry_date);
       return e >= now && e <= add(now,3);
     }).length;
-    return { total: customers.length, prospects, expiry1m, expiry3m };
+    return { total: customers.length, prospects, contracted, expiry1m, expiry3m };
   }, [customers]);
 
   // ── Filtering ─────────────────────────────────────────────────────
@@ -311,7 +374,9 @@ function Dashboard({ activeFields }) {
     }
 
     // Tab filter
-    if (filter === 'prospect') {
+    if (filter === 'contracted') {
+      list = list.filter(c => c.is_contracted || (!c.is_prospect));
+    } else if (filter === 'prospect') {
       list = list.filter(c => c.is_prospect);
     } else if (filter === 'expiry_1m') {
       const limit = add(now,1);
@@ -361,8 +426,15 @@ function Dashboard({ activeFields }) {
   const openEdit   = (c, e) => { e.stopPropagation(); setModalMode('edit'); setSelected(c); };
 
   const handleSave = async (data) => {
-    if (modalMode === 'create') await api.createCustomer(data);
-    else await api.updateCustomer(selected.id, data);
+    if (modalMode && modalMode.startsWith('create')) {
+      await api.createCustomer(data);
+    } else if (modalMode === 'convert_to_contracted') {
+      data.is_prospect = false;
+      data.is_contracted = true;
+      await api.updateCustomer(selected.id, data);
+    } else {
+      await api.updateCustomer(selected.id, data);
+    }
     setModalMode(null);
     load();
   };
@@ -390,11 +462,12 @@ function Dashboard({ activeFields }) {
   };
 
   const FILTERS = [
-    { id:'all',       label:'전체',           cls:''           },
-    { id:'prospect',  label:'가망고객',        cls:'ft-prospect', icon:<Star size={12}/> },
-    { id:'expiry_1m', label:'만기 1개월 이내', cls:'ft-expiry-red', icon:<Clock size={12}/> },
-    { id:'expiry_3m', label:'만기 3개월 이내', cls:'ft-expiry-ora', icon:<Clock size={12}/> },
-    { id:'expiry_6m', label:'만기 6개월 이내', cls:'ft-expiry-yel', icon:<Clock size={12}/> },
+    { id:'all',        label:'전체',           cls:''           },
+    { id:'contracted', label:'기고객',         cls:'ft-contracted', icon:<CheckCircle size={12}/> },
+    { id:'prospect',   label:'상담고객',       cls:'ft-prospect', icon:<Star size={12}/> },
+    { id:'expiry_1m',  label:'만기 1개월 이내', cls:'ft-expiry-red', icon:<Clock size={12}/> },
+    { id:'expiry_3m',  label:'만기 3개월 이내', cls:'ft-expiry-ora', icon:<Clock size={12}/> },
+    { id:'expiry_6m',  label:'만기 6개월 이내', cls:'ft-expiry-yel', icon:<Clock size={12}/> },
   ];
 
   return (
@@ -406,8 +479,13 @@ function Dashboard({ activeFields }) {
           <span className="stat-value">{stats.total}</span>
           <span className="stat-sub">등록된 고객 수</span>
         </div>
+        <div className="stat-card" style={{ borderColor: stats.contracted ? 'rgba(52,211,153,.3)':'' }}>
+          <span className="stat-label" style={{ color:'#6ee7b7' }}>✓ 기고객</span>
+          <span className="stat-value">{stats.contracted}</span>
+          <span className="stat-sub">현재 계약 고객</span>
+        </div>
         <div className="stat-card" style={{ borderColor: stats.prospects ? 'rgba(245,158,11,.3)':'' }}>
-          <span className="stat-label" style={{ color:'#fcd34d' }}>🌟 가망고객</span>
+          <span className="stat-label" style={{ color:'#fcd34d' }}>★ 상담고객</span>
           <span className="stat-value">{stats.prospects}</span>
           <span className="stat-sub">잠재 계약 대상</span>
         </div>
@@ -429,7 +507,10 @@ function Dashboard({ activeFields }) {
           <h1>고객 데이터베이스</h1>
           <p>고객 정보를 등록하고 실시간 상담 내역을 기록합니다.</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}><Plus size={16}/> 고객 등록</button>
+        <div style={{ display:'flex', gap:'0.5rem' }}>
+          <button className="btn btn-primary" onClick={() => setModalMode('create_contracted')}><Plus size={16}/> 기고객 등록</button>
+          <button className="btn btn-secondary" onClick={() => setModalMode('create_prospect')}><Plus size={16}/> 상담고객 등록</button>
+        </div>
       </div>
 
       {/* Filter tabs */}
@@ -440,6 +521,7 @@ function Dashboard({ activeFields }) {
             onClick={() => setFilter(f.id)}>
             {f.icon}{f.label}
             {f.id === 'all' && <span style={{ marginLeft:4, fontWeight:400, color:'var(--text-3)' }}>{customers.length}</span>}
+            {f.id === 'contracted' && <span style={{ marginLeft:4, fontWeight:400 }}>{stats.contracted}</span>}
             {f.id === 'prospect'  && <span style={{ marginLeft:4, fontWeight:400 }}>{stats.prospects}</span>}
             {f.id === 'expiry_1m' && <span style={{ marginLeft:4, fontWeight:400 }}>{stats.expiry1m}</span>}
             {f.id === 'expiry_3m' && <span style={{ marginLeft:4, fontWeight:400 }}>{stats.expiry3m}</span>}
@@ -473,7 +555,10 @@ function Dashboard({ activeFields }) {
                 : '등록된 고객이 없습니다.'}
             </h3>
             {filter === 'all' && !search && (
-              <button className="btn btn-primary" onClick={openCreate}><Plus size={14}/> 첫 고객 등록하기</button>
+              <div style={{ display:'flex', gap:'0.5rem', justifyContent:'center' }}>
+                <button className="btn btn-primary" onClick={() => setModalMode('create_contracted')}><Plus size={14}/> 첫 기고객 등록</button>
+                <button className="btn btn-secondary" onClick={() => setModalMode('create_prospect')}><Plus size={14}/> 첫 상담고객 등록</button>
+              </div>
             )}
           </div>
         ) : (
@@ -558,30 +643,48 @@ function Dashboard({ activeFields }) {
                 </h2>
                 <p style={{ fontSize:'.78rem', color:'var(--text-3)', marginTop:2 }}>고객 #{selected.id}</p>
               </div>
-              <button className="btn btn-ghost btn-icon" onClick={() => setSelected(null)}><X size={18}/></button>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  {selected.is_prospect && !selected.is_contracted && (
+                    <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); setModalMode('convert_to_contracted'); }} style={{ padding: '0.25rem 0.75rem', height: '32px' }}>
+                      <CheckCircle size={14} style={{ marginRight: 4 }}/> 기고객 전환
+                    </button>
+                  )}
+                  <button className="btn btn-secondary btn-sm" onClick={(e) => openEdit(selected, e)} style={{ padding: '0.25rem 0.75rem', height: '32px' }}><Edit2 size={14}/> 수정</button>
+                <button className="btn btn-ghost btn-icon" onClick={() => setSelected(null)}><X size={18}/></button>
+              </div>
             </div>
             <div className="drawer-body">
               <div className="info-grid">
-                {activeFields.map(f => {
-                  const v = getVal(selected, f);
-                  return (
-                    <div className="info-row" key={f.id}>
-                      <span className="lbl">{f.label}</span>
-                      <span className="val">
-                        {f.name === 'expiry_date' ? <ExpiryBadge dateStr={v} />
-                         : f.field_type === 'image' ? (v ? <a href={`${api.BASE_URL}${v}`} target="_blank" rel="noreferrer"><img src={`${api.BASE_URL}${v}`} alt="첨부" style={{ maxHeight: 150, borderRadius: 8, border:'1px solid var(--border)', marginTop: 4, display: 'block' }} /></a> : <span style={{color:'var(--text-3)'}}>미첨부</span>)
-                         : f.name === 'is_prospect' ? (v ? <span className="badge badge-warn"><Star size={10}/> 가망고객</span> : <span className="badge badge-no">일반 고객</span>)
-                         : f.name === 'is_contracted' ? (v ? <span className="badge badge-ok"><CheckCircle size={10}/> 기계약 고객</span> : <span className="badge badge-no">미계약 고객</span>)
-                         : f.field_type === 'boolean' ? <span className={v ? 'badge badge-ok' : 'badge badge-no'}>{f.name === 'insurance_active' ? (v ? '가입' : '미가입') : (v ? 'Y' : 'N')}</span>
-                         : f.name === 'contract_months' && v ? `${v}개월`
-                         : v != null ? String(v) : '—'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <h3 style={{ fontSize:'.9rem', fontWeight:600, marginBottom:'1rem' }}>📋 상담 일지</h3>
+                  {activeFields.filter(f => f.target_type === 'common' || f.target_type === (selected.is_prospect ? 'prospect' : 'contracted')).map(f => {
+                    const v = getVal(selected, f);
+                    return (
+                      <div className="info-row" key={f.id}>
+                        <span className="lbl">{f.label}</span>
+                        <span className="val">
+                          {f.name === 'expiry_date' ? <ExpiryBadge dateStr={v} />
+                           : f.field_type === 'image' ? (v ? <a href={`${api.BASE_URL}${v}`} target="_blank" rel="noreferrer"><img src={`${api.BASE_URL}${v}`} alt="첨부" style={{ maxHeight: 150, borderRadius: 8, border:'1px solid var(--border)', marginTop: 4, display: 'block' }} /></a> : <span style={{color:'var(--text-3)'}}>미첨부</span>)
+                           : f.field_type === 'image_gallery' ? (
+                               v && v.length > 0 ? (
+                                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: 4 }}>
+                                   {v.map((url, i) => (
+                                     <a key={i} href={`${api.BASE_URL}${url}`} target="_blank" rel="noreferrer">
+                                       <img src={`${api.BASE_URL}${url}`} alt="견적" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                                     </a>
+                                   ))}
+                                 </div>
+                               ) : <span style={{color:'var(--text-3)'}}>미첨부</span>
+                           )
+                           : f.name === 'is_prospect' ? (v ? <span className="badge badge-warn"><Star size={10}/> 상담고객</span> : <span className="badge badge-no">일반 고객</span>)
+                           : f.name === 'is_contracted' ? (v ? <span className="badge badge-ok"><CheckCircle size={10}/> 기계약고객</span> : <span className="badge badge-no">미계약고객</span>)
+                           : f.field_type === 'boolean' ? <span className={v ? 'badge badge-ok' : 'badge badge-no'}>{f.name === 'insurance_active' ? (v ? '가입' : '미가입') : (v ? 'Y' : 'N')}</span>
+                           : f.name === 'contract_months' && v ? `${v}개월`
+                           : v != null ? String(v) : '—'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <h3 style={{ fontSize:'.9rem', fontWeight:600, marginBottom:'1rem' }}>📋 상담 일지</h3>
               <form className="consult-form" onSubmit={handleAddNote}>
                 <input className="form-input" placeholder="새 상담 내용 입력 후 전송…"
                   value={noteText} onChange={e => setNoteText(e.target.value)} required />
@@ -614,12 +717,21 @@ function Dashboard({ activeFields }) {
         <div className="overlay" onClick={() => setModalMode(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-hd">
-              <h2>{modalMode === 'create' ? '신규 고객 등록' : '고객 정보 수정'}</h2>
+              <h2>
+                {modalMode.startsWith('create') ? '신규 고객 등록' : 
+                 modalMode === 'convert_to_contracted' ? '기고객으로 전환' : '고객 정보 수정'}
+              </h2>
               <button className="btn btn-ghost btn-icon" onClick={() => setModalMode(null)}><X size={16}/></button>
             </div>
             <CustomerForm
+              formType={
+                  modalMode === 'create_contracted' ? 'contracted' :
+                  modalMode === 'create_prospect' ? 'prospect' :
+                  modalMode === 'convert_to_contracted' ? 'contracted' :
+                  (selected?.is_prospect ? 'prospect' : 'contracted')
+                }
               fields={activeFields}
-              initial={modalMode === 'edit' ? selected : null}
+              initial={(modalMode === 'edit' || modalMode === 'convert_to_contracted') ? selected : null}
               onSave={handleSave}
               onClose={() => setModalMode(null)}
             />
@@ -783,8 +895,12 @@ function ExcelImport({ activeFields }) {
 
 /* ─── FieldSettings ──────────────────────────────────────────────────── */
 function FieldSettings({ fields, onRefresh }) {
+  const [settingsTab, setSettingsTab] = useState('contracted');
   const [adding, setAdding]         = useState(false);
   const [form, setForm]             = useState({ name:'', label:'', field_type:'text', options:'' });
+  
+  const activeTabFields = fields.filter(f => f.target_type === settingsTab || f.target_type === 'common');
+
   const [editingLabel, setEditingLabel] = useState(null); // { id, label }
   const [error, setError]           = useState('');
   const [success, setSuccess]       = useState('');
@@ -801,7 +917,8 @@ function FieldSettings({ fields, onRefresh }) {
         options: form.field_type === 'select'
           ? form.options.split(',').map(s=>s.trim()).filter(Boolean)
           : null,
-        sort_order: Math.max(0, ...fields.map(f=>f.sort_order)) + 1,
+        sort_order: Math.max(0, ...activeTabFields.map(f=>f.sort_order)) + 1,
+        target_type: settingsTab,
       };
       await api.createField(body);
       setSuccess(`'${body.label}' 항목이 추가되었습니다.`);
@@ -817,9 +934,9 @@ function FieldSettings({ fields, onRefresh }) {
   };
 
   const moveOrder = async (idx, dir) => {
-    const target = fields[idx + (dir === 'up' ? -1 : 1)];
+    const target = activeTabFields[idx + (dir === 'up' ? -1 : 1)];
     if (!target) return;
-    const a = fields[idx], b = target;
+    const a = activeTabFields[idx], b = target;
     await Promise.all([
       api.updateField(a.id, { sort_order: b.sort_order }),
       api.updateField(b.id, { sort_order: a.sort_order }),
@@ -852,6 +969,15 @@ function FieldSettings({ fields, onRefresh }) {
         <button className="btn btn-primary" onClick={() => setAdding(!adding)}>
           <Plus size={16}/> {adding ? '닫기' : '항목 추가'}
         </button>
+      </div>
+      
+      <div style={{ display:'flex', borderBottom:'1px solid var(--border)', marginBottom:'1.5rem', gap:'1rem' }}>
+        <button 
+          style={{ padding:'0.5rem 1rem', background:'none', border:'none', borderBottom: settingsTab === 'contracted' ? '2px solid var(--primary)' : '2px solid transparent', color: settingsTab === 'contracted' ? 'var(--text)' : 'var(--text-2)', cursor:'pointer', fontWeight: settingsTab === 'contracted' ? 600 : 400 }}
+          onClick={() => { setSettingsTab('contracted'); setAdding(false); }}>기계약고객 항목</button>
+        <button 
+          style={{ padding:'0.5rem 1rem', background:'none', border:'none', borderBottom: settingsTab === 'prospect' ? '2px solid var(--primary)' : '2px solid transparent', color: settingsTab === 'prospect' ? 'var(--text)' : 'var(--text-2)', cursor:'pointer', fontWeight: settingsTab === 'prospect' ? 600 : 400 }}
+          onClick={() => { setSettingsTab('prospect'); setAdding(false); }}>상담고객 항목</button>
       </div>
 
       {adding && (
@@ -899,9 +1025,9 @@ function FieldSettings({ fields, onRefresh }) {
 
       <div className="card">
         <h3 style={{ fontFamily:'var(--font-display)', fontSize:'1rem', fontWeight:700, marginBottom:'1rem' }}>
-          현재 항목 목록 ({fields.length}개)
+          현재 항목 목록 ({activeTabFields.length}개)
         </h3>
-        {fields.map((f, idx) => (
+        {activeTabFields.map((f, idx) => (
           <div key={f.id} className={`field-card ${f.is_active ? '' : 'dim'}`}>
 
             {/* Order buttons */}
@@ -909,7 +1035,7 @@ function FieldSettings({ fields, onRefresh }) {
               <button className="btn btn-icon" style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-3)', padding:'1px' }}
                 onClick={() => moveOrder(idx, 'up')} disabled={idx===0}><ChevronUp size={13}/></button>
               <button className="btn btn-icon" style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-3)', padding:'1px' }}
-                onClick={() => moveOrder(idx, 'down')} disabled={idx===fields.length-1}><ChevronDown size={13}/></button>
+                onClick={() => moveOrder(idx, 'down')} disabled={idx===activeTabFields.length-1}><ChevronDown size={13}/></button>
             </div>
 
             {/* Meta */}

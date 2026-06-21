@@ -34,3 +34,5 @@ CMhelper_web/frontend/CMhelper_webfrontend/
 .antigravity/
 .DS_Store
 Thumbs.db
+
+CMhelper_web/backend/uploads/

@@ -38,26 +38,27 @@ def _compute_expiry(contract_date_str: Optional[str],
 # ── System field definitions ───────────────────────────────────────────────────
 
 _SYSTEM_FIELDS = [
-    dict(name="name",             label="이름",              field_type="text",     sort_order=1),
-    dict(name="contact",          label="연락처",             field_type="text",     sort_order=2),
-    dict(name="region",           label="지역",               field_type="text",     sort_order=3),
-    dict(name="company",          label="업체명",             field_type="text",     sort_order=4),
-    dict(name="contract_car",     label="계약차종",            field_type="text",     sort_order=5),
-    dict(name="contract_date",    label="계약일(인도일)",       field_type="date",     sort_order=6),
+    dict(name="name",             label="이름",              field_type="text",     sort_order=1, target_type="common"),
+    dict(name="contact",          label="연락처",             field_type="text",     sort_order=2, target_type="common"),
+    dict(name="region",           label="지역",               field_type="text",     sort_order=3, target_type="common"),
+    dict(name="company",          label="업체명",             field_type="text",     sort_order=4, target_type="common"),
+    dict(name="contract_car",     label="계약차종",            field_type="text",     sort_order=5, target_type="common"),
+    dict(name="contract_date",    label="계약일(인도일)",       field_type="date",     sort_order=6, target_type="contracted"),
     dict(name="contract_months",  label="계약 개월수",         field_type="select",   sort_order=7,
-         options=["24", "36", "48", "60"]),
-    dict(name="expiry_date",      label="만기일",              field_type="date",     sort_order=8),
-    dict(name="capital",          label="캐피탈",             field_type="text",     sort_order=9),
+         options=["24", "36", "48", "60"], target_type="contracted"),
+    dict(name="expiry_date",      label="만기일",              field_type="date",     sort_order=8, target_type="contracted"),
+    dict(name="capital",          label="캐피탈",             field_type="text",     sort_order=9, target_type="contracted"),
     dict(name="product_type",     label="상품",               field_type="select",   sort_order=10,
-         options=["장기렌트", "리스", "할부", "일시불"]),
-    dict(name="supplies_work",    label="용품작업내용+업체명",  field_type="text",     sort_order=11),
-    dict(name="insurance_active", label="보험가입여부",         field_type="boolean",  sort_order=12),
-    dict(name="dealer_info",      label="담당 딜러+딜러사",     field_type="text",     sort_order=13),
-    dict(name="is_prospect",      label="가망고객",            field_type="boolean",  sort_order=14),
-    dict(name="is_contracted",    label="기계약 고객",          field_type="boolean",  sort_order=15),
-    dict(name="anniversary",      label="기념일",              field_type="date",     sort_order=16),
-    dict(name="memo",             label="기타 메모사항",       field_type="textarea", sort_order=17),
-    dict(name="estimate_image",   label="견적서 첨부",         field_type="image",    sort_order=18),
+         options=["장기렌트", "리스", "할부", "일시불"], target_type="contracted"),
+    dict(name="supplies_work",    label="용품작업내용+업체명",  field_type="text",     sort_order=11, target_type="contracted"),
+    dict(name="insurance_active", label="보험가입여부",         field_type="boolean",  sort_order=12, target_type="contracted"),
+    dict(name="dealer_info",      label="담당 딜러+딜러사",     field_type="text",     sort_order=13, target_type="contracted"),
+    dict(name="is_prospect",      label="가망고객",            field_type="boolean",  sort_order=14, target_type="contracted"),
+    dict(name="is_contracted",    label="기계약 고객",          field_type="boolean",  sort_order=15, target_type="contracted"),
+    dict(name="anniversary",      label="기념일",              field_type="date",     sort_order=16, target_type="contracted"),
+    dict(name="memo",             label="기타 메모사항",       field_type="textarea", sort_order=17, target_type="common"),
+    dict(name="estimate_image",   label="견적서 첨부",         field_type="image",    sort_order=18, target_type="contracted"),
+    dict(name="sent_quotes",      label="보낸 견적함",         field_type="image_gallery", sort_order=19, target_type="prospect"),
 ]
 
 _SYSTEM_NAMES      = {f["name"] for f in _SYSTEM_FIELDS}
@@ -78,12 +79,13 @@ def seed_defaults(db: Session) -> None:
         if not existing:
             db.add(models.FieldDefinition(
                 id=str(uuid.uuid4()),
-                is_system=True,
-                is_active=True,
-                **f,
+                name=f["name"], label=f["label"], field_type=f["field_type"],
+                sort_order=f["sort_order"], options=f.get("options"),
+                is_system=True, is_active=True, target_type=f.get("target_type", "contracted")
             ))
         else:
             existing.is_system = True
+            existing.target_type = f.get("target_type", "contracted")
             if "options" in f:
                 existing.options = f["options"]
 
@@ -111,6 +113,7 @@ def create_field(db: Session, data: schemas.FieldDefCreate) -> Optional[models.F
         is_system=False,
         is_active=True,
         sort_order=data.sort_order,
+        target_type=data.target_type,
     )
     db.add(row)
     db.commit()
@@ -193,9 +196,16 @@ def create_customer(db: Session, data: schemas.CustomerCreate) -> models.Custome
         anniversary=data.anniversary,
         memo=data.memo,
         estimate_image=data.estimate_image,
+        sent_quotes=data.sent_quotes or [],
         extra=data.extra or {},
     )
     db.add(row)
+    db.flush() # get row.id without committing
+    
+    if data.initial_consultation:
+        consultation = models.Consultation(customer_id=row.id, notes=data.initial_consultation)
+        db.add(consultation)
+
     db.commit()
     db.refresh(row)
     return row

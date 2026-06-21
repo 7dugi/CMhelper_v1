@@ -22,32 +22,51 @@ Base.metadata.create_all(bind=engine)
 
 
 def run_migrations(eng) -> None:
-    """Forward-only column migrations for SQLite (safe to run every startup)."""
-    with eng.connect() as conn:
-        result = conn.execute(text("PRAGMA table_info(customers)"))
-        existing = {row[1] for row in result.fetchall()}
+    """Forward-only column migrations for SQLite and Postgres."""
+    dialect = eng.dialect.name
+    with eng.begin() as conn:
+        if dialect == "sqlite":
+            result = conn.execute(text("PRAGMA table_info(customers)"))
+            existing_cust = {row[1] for row in result.fetchall()}
+            result = conn.execute(text("PRAGMA table_info(field_definitions)"))
+            existing_fd = {row[1] for row in result.fetchall()}
+        else:
+            # PostgreSQL
+            result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='customers'"))
+            existing_cust = {row[0] for row in result.fetchall()}
+            result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='field_definitions'"))
+            existing_fd = {row[0] for row in result.fetchall()}
 
-        new_cols = [
-            ("contact",         "VARCHAR"),
-            ("region",          "VARCHAR"),
-            ("contract_date",   "VARCHAR"),
-            ("contract_months", "INTEGER"),
-            ("expiry_date",     "VARCHAR"),
-            ("capital",         "VARCHAR"),
-            ("product_type",    "VARCHAR"),
-            ("is_prospect",     "BOOLEAN DEFAULT 0"),
-            ("is_contracted",   "BOOLEAN DEFAULT 0"),
-            ("anniversary",     "VARCHAR"),
-            ("memo",            "VARCHAR"),
-            ("estimate_image",  "VARCHAR"),
-            ("extra",           "TEXT DEFAULT '{}'"),
+        # Customers table
+        cust_cols = [
+            ("contact",         "VARCHAR",           "VARCHAR"),
+            ("region",          "VARCHAR",           "VARCHAR"),
+            ("contract_date",   "VARCHAR",           "VARCHAR"),
+            ("contract_months", "INTEGER",           "INTEGER"),
+            ("expiry_date",     "VARCHAR",           "VARCHAR"),
+            ("capital",         "VARCHAR",           "VARCHAR"),
+            ("product_type",    "VARCHAR",           "VARCHAR"),
+            ("is_prospect",     "BOOLEAN DEFAULT 0", "BOOLEAN DEFAULT FALSE"),
+            ("is_contracted",   "BOOLEAN DEFAULT 0", "BOOLEAN DEFAULT FALSE"),
+            ("anniversary",     "VARCHAR",           "VARCHAR"),
+            ("memo",            "VARCHAR",           "VARCHAR"),
+            ("estimate_image",  "VARCHAR",           "VARCHAR"),
+            ("sent_quotes",     "TEXT DEFAULT '[]'", "JSONB DEFAULT '[]'::jsonb"),
+            ("extra",           "TEXT DEFAULT '{}'", "JSONB DEFAULT '{}'::jsonb"),
         ]
-        for col_name, col_type in new_cols:
-            if col_name not in existing:
-                conn.execute(text(
-                    f"ALTER TABLE customers ADD COLUMN {col_name} {col_type}"
-                ))
-        conn.commit()
+        for col_name, sqlite_type, pg_type in cust_cols:
+            if col_name not in existing_cust:
+                ctype = sqlite_type if dialect == "sqlite" else pg_type
+                conn.execute(text(f"ALTER TABLE customers ADD COLUMN {col_name} {ctype}"))
+
+        # FieldDefinitions table
+        fd_cols = [
+            ("target_type", "VARCHAR DEFAULT 'contracted'", "VARCHAR DEFAULT 'contracted'"),
+        ]
+        for col_name, sqlite_type, pg_type in fd_cols:
+            if col_name not in existing_fd:
+                ctype = sqlite_type if dialect == "sqlite" else pg_type
+                conn.execute(text(f"ALTER TABLE field_definitions ADD COLUMN {col_name} {ctype}"))
 
 
 run_migrations(engine)

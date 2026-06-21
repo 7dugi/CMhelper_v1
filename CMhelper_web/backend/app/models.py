@@ -17,6 +17,7 @@ class FieldDefinition(Base):
     is_system   = Column(Boolean, default=False, nullable=False)
     is_active   = Column(Boolean, default=True, nullable=False)
     sort_order  = Column(Integer, default=100, nullable=False)
+    target_type = Column(String, default="contracted", nullable=False) # 'contracted', 'prospect', 'common'
 
 
 class Customer(Base):
@@ -44,6 +45,7 @@ class Customer(Base):
     anniversary      = Column(String, nullable=True)
     memo             = Column(String, nullable=True)
     estimate_image   = Column(String, nullable=True)
+    sent_quotes      = Column(JSON, default=list, nullable=True) # List of image URLs
     # ── Flexible bag for user-added fields ────────────────────────────────
     extra            = Column(JSON, default=dict, nullable=False)
 

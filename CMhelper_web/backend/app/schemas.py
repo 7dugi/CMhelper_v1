@@ -12,6 +12,7 @@ class FieldDefBase(BaseModel):
     options:    Optional[List[str]] = None
     is_active:  bool = True
     sort_order: int = 100
+    target_type: str = "contracted" # 'contracted', 'prospect', 'common'
 
 class FieldDefCreate(FieldDefBase):
     name: str
@@ -28,7 +29,7 @@ class FieldDefCreate(FieldDefBase):
             "contract_date","contract_months","expiry_date",
             "capital","product_type","supplies_work","insurance_active","dealer_info",
             "is_prospect","is_contracted","anniversary","memo","estimate_image",
-            "extra","created_at","updated_at",
+            "sent_quotes","extra","created_at","updated_at",
         }
         if v in reserved:
             raise ValueError(f"'{v}' is a reserved field name")
@@ -40,6 +41,7 @@ class FieldDefUpdate(BaseModel):
     options:    Optional[List[str]] = None
     is_active:  Optional[bool]      = None
     sort_order: Optional[int]       = None
+    target_type: Optional[str]      = None
 
 class FieldDefOut(FieldDefBase):
     id:        str
@@ -81,10 +83,11 @@ class CustomerBase(BaseModel):
     anniversary:      Optional[str]  = None
     memo:             Optional[str]  = None
     estimate_image:   Optional[str]  = None
+    sent_quotes:      Optional[List[str]] = Field(default_factory=list)
     extra:            Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 class CustomerCreate(CustomerBase):
-    pass
+    initial_consultation: Optional[str] = None
 
 class CustomerUpdate(BaseModel):
     name:             Optional[str]  = None
@@ -104,6 +107,7 @@ class CustomerUpdate(BaseModel):
     anniversary:      Optional[str]  = None
     memo:             Optional[str]  = None
     estimate_image:   Optional[str]  = None
+    sent_quotes:      Optional[List[str]] = None
     extra:            Optional[Dict[str, Any]] = None
 
 class CustomerOut(CustomerBase):
