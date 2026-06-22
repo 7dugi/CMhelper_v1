@@ -78,7 +78,7 @@ class CustomerBase(BaseModel):
     supplies_work:    Optional[str]  = None
     insurance_active: bool           = False
     dealer_info:      Optional[str]  = None
-    is_prospect:      bool           = False
+    is_prospect:      int            = 0
     is_contracted:    bool           = False
     anniversary:      Optional[str]  = None
     memo:             Optional[str]  = None
@@ -102,7 +102,7 @@ class CustomerUpdate(BaseModel):
     supplies_work:    Optional[str]  = None
     insurance_active: Optional[bool] = None
     dealer_info:      Optional[str]  = None
-    is_prospect:      Optional[bool] = None
+    is_prospect:      Optional[int]  = None
     is_contracted:    Optional[bool] = None
     anniversary:      Optional[str]  = None
     memo:             Optional[str]  = None

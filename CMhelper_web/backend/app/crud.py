@@ -53,7 +53,7 @@ _SYSTEM_FIELDS = [
     dict(name="supplies_work",    label="용품작업내용+업체명",  field_type="text",     sort_order=11, target_type="contracted"),
     dict(name="insurance_active", label="보험가입여부",         field_type="boolean",  sort_order=12, target_type="contracted"),
     dict(name="dealer_info",      label="담당 딜러+딜러사",     field_type="text",     sort_order=13, target_type="contracted"),
-    dict(name="is_prospect",      label="가망고객",            field_type="boolean",  sort_order=14, target_type="contracted"),
+    dict(name="is_prospect",      label="가망고객",            field_type="boolean",  sort_order=14, target_type="prospect"),
     dict(name="is_contracted",    label="기계약 고객",          field_type="boolean",  sort_order=15, target_type="contracted"),
     dict(name="anniversary",      label="기념일",              field_type="date",     sort_order=16, target_type="contracted"),
     dict(name="memo",             label="기타 메모사항",       field_type="textarea", sort_order=17, target_type="common"),

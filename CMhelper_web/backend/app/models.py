@@ -40,7 +40,7 @@ class Customer(Base):
     supplies_work    = Column(String, nullable=True)
     insurance_active = Column(Boolean, default=False)
     dealer_info      = Column(String, nullable=True)
-    is_prospect      = Column(Boolean, default=False)
+    is_prospect      = Column(Integer, default=0)
     is_contracted    = Column(Boolean, default=False)
     anniversary      = Column(String, nullable=True)
     memo             = Column(String, nullable=True)

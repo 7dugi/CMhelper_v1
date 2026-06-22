@@ -8,7 +8,7 @@ echo       CMhelper v1  -  Starting...
 echo  ==========================================
 echo.
 
-:: â”€â”€â”€ Kill any previous instances on these ports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+:: ?€?€?€ Kill any previous instances on these ports ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":8002 "') do (
     taskkill /F /PID %%a > nul 2>&1
 )
@@ -16,16 +16,16 @@ for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":5173 "') do (
     taskkill /F /PID %%a > nul 2>&1
 )
 
-:: â”€â”€â”€ Backend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+:: ?€?€?€ Backend ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
 echo  [1/3] Installing Python packages (first run may take a moment)...
 pip install -r "%~dp0CMhelper_web\backend\requirements.txt" -q --no-warn-script-location 2>nul
 
 echo  [2/3] Starting Backend  (http://localhost:8002) ...
-start "CMhelper-Backend" cmd /k "cd /d "%~dp0CMhelper_web\backend" && uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload"
+start "CMhelper-Backend" cmd /k "cd /d "%~dp0CMhelper_web\backend" && python -m uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload"
 
 timeout /t 4 /nobreak > nul
 
-:: â”€â”€â”€ Frontend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+:: ?€?€?€ Frontend ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
 echo  [3/3] Starting Frontend (http://localhost:5173) ...
 start "CMhelper-Frontend" cmd /k "cd /d "%~dp0CMhelper_web\frontend" && npm run dev"
 

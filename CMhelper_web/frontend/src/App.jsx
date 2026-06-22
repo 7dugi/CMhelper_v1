@@ -17,6 +17,28 @@ const SYSTEM_KEYS = new Set([
 ]);
 
 /* ─── helpers ────────────────────────────────────────────────────────── */
+
+const renderProspectBadge = (v) => {
+  if (!v || v <= 0) return <span className="badge badge-no">일반</span>;
+  const level = Number(v);
+  const colors = {
+    1: '#fcd34d',
+    2: '#fbbf24',
+    3: '#f59e0b',
+    4: '#ea580c',
+    5: '#dc2626'
+  };
+  const color = colors[level] || 'var(--warn)';
+  return (
+    <span className="badge" style={{ backgroundColor: `${color}20`, color: color, border: `1px solid ${color}40`, display: 'inline-flex', alignItems: 'center' }}>
+      <div style={{display:'flex', gap:'1px', marginRight:'4px'}}>
+        {[...Array(level)].map((_, i) => <Star key={i} size={10} fill={color} stroke={color} />)}
+      </div>
+      {level}단계
+    </span>
+  );
+};
+
 const fmtDate = (d) => {
   if (!d) return '';
   const dt = new Date(d);
@@ -133,25 +155,37 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
           // ── Boolean toggle ───────────────────────────────────────────
           if (fd.field_type === 'boolean') {
             if (fd.name === 'is_prospect') {
-              const contractField = fields.find(f => f.name === 'is_contracted');
+              const val = Number(form[fd.name] || 0);
               return (
-                <div className="form-row form-grid-2" key={fd.id}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--bg-input)', padding:'0.7rem 0.95rem', borderRadius:'var(--radius-md)', border:'1px solid var(--border)' }}>
-                    <label className="form-label" style={{ marginBottom:0 }}>{fd.label}</label>
-                    <label className="toggle">
-                      <input type="checkbox" checked={!!form[fd.name]} onChange={e => set(fd.name, e.target.checked)} />
-                      <span className="track" />
-                    </label>
+                <div className="form-row" key={fd.id}>
+                  <label style={{display:'block', marginBottom:'8px', fontWeight:600}}>가망고객 중요도 (1~5단계)</label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {[1,2,3,4,5].map(lvl => (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={(e) => {
+                           e.preventDefault();
+                           set(fd.name, val === lvl ? 0 : lvl);
+                        }}
+                        style={{
+                          background: val >= lvl ? 'var(--warn-bg)' : 'transparent',
+                          border: val >= lvl ? '1px solid var(--warn)' : '1px solid var(--border)',
+                          color: val >= lvl ? 'var(--warn)' : 'var(--text-3)',
+                          padding: '0.4rem 0.8rem',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '0.85rem'
+                        }}
+                      >
+                        <Star size={14} fill={val >= lvl ? 'var(--warn)' : 'none'} /> {lvl}단계
+                      </button>
+                    ))}
                   </div>
-                  {contractField && (
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--bg-input)', padding:'0.7rem 0.95rem', borderRadius:'var(--radius-md)', border:'1px solid var(--border)' }}>
-                      <label className="form-label" style={{ marginBottom:0 }}>{contractField.label}</label>
-                      <label className="toggle">
-                        <input type="checkbox" checked={!!form[contractField.name]} onChange={e => set(contractField.name, e.target.checked)} />
-                        <span className="track" />
-                      </label>
-                    </div>
-                  )}
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginTop: '6px' }}>* 버튼을 한 번 더 누르면 선택이 취소(일반고객)됩니다.</p>
                 </div>
               );
             }
@@ -429,7 +463,7 @@ function Dashboard({ activeFields }) {
     if (modalMode && modalMode.startsWith('create')) {
       await api.createCustomer(data);
     } else if (modalMode === 'convert_to_contracted') {
-      data.is_prospect = false;
+      data.is_prospect = 0;
       data.is_contracted = true;
       await api.updateCustomer(selected.id, data);
     } else {
@@ -596,8 +630,7 @@ function Dashboard({ activeFields }) {
                       if (f.name === 'expiry_date') return <td key={f.id}><ExpiryBadge dateStr={v} /></td>;
                       if (f.name === 'is_prospect') return (
                         <td key={f.id}>
-                          {v ? <span className="badge badge-warn"><Star size={10}/> 가망</span>
-                             : <span className="badge badge-no">일반</span>}
+                          {renderProspectBadge(v)}
                         </td>
                       );
                       if (f.name === 'is_contracted') return (
@@ -639,12 +672,12 @@ function Dashboard({ activeFields }) {
               <div>
                 <h2 style={{ display:'flex', alignItems:'center', gap:8 }}>
                   {selected.name}
-                  {selected.is_prospect && <span className="badge badge-warn"><Star size={10}/> 가망</span>}
+                  {selected.is_prospect > 0 && renderProspectBadge(selected.is_prospect)}
                 </h2>
                 <p style={{ fontSize:'.78rem', color:'var(--text-3)', marginTop:2 }}>고객 #{selected.id}</p>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  {selected.is_prospect && !selected.is_contracted && (
+                  {!selected.is_contracted && (
                     <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); setModalMode('convert_to_contracted'); }} style={{ padding: '0.25rem 0.75rem', height: '32px' }}>
                       <CheckCircle size={14} style={{ marginRight: 4 }}/> 기고객 전환
                     </button>
@@ -655,7 +688,7 @@ function Dashboard({ activeFields }) {
             </div>
             <div className="drawer-body">
               <div className="info-grid">
-                  {activeFields.filter(f => f.target_type === 'common' || f.target_type === (selected.is_prospect ? 'prospect' : 'contracted')).map(f => {
+                  {activeFields.filter(f => f.target_type === 'common' || f.target_type === (!selected.is_contracted ? 'prospect' : 'contracted')).map(f => {
                     const v = getVal(selected, f);
                     return (
                       <div className="info-row" key={f.id}>
@@ -674,7 +707,7 @@ function Dashboard({ activeFields }) {
                                  </div>
                                ) : <span style={{color:'var(--text-3)'}}>미첨부</span>
                            )
-                           : f.name === 'is_prospect' ? (v ? <span className="badge badge-warn"><Star size={10}/> 상담고객</span> : <span className="badge badge-no">일반 고객</span>)
+                           : f.name === 'is_prospect' ? renderProspectBadge(v)
                            : f.name === 'is_contracted' ? (v ? <span className="badge badge-ok"><CheckCircle size={10}/> 기계약고객</span> : <span className="badge badge-no">미계약고객</span>)
                            : f.field_type === 'boolean' ? <span className={v ? 'badge badge-ok' : 'badge badge-no'}>{f.name === 'insurance_active' ? (v ? '가입' : '미가입') : (v ? 'Y' : 'N')}</span>
                            : f.name === 'contract_months' && v ? `${v}개월`
@@ -718,9 +751,10 @@ function Dashboard({ activeFields }) {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-hd">
               <h2>
-                {modalMode.startsWith('create') ? '신규 고객 등록' : 
-                 modalMode === 'convert_to_contracted' ? '기고객으로 전환' : '고객 정보 수정'}
-              </h2>
+                  {modalMode === 'create_contracted' ? '기고객 등록' :
+                   modalMode === 'create_prospect' ? '상담고객 등록' :
+                   modalMode === 'convert_to_contracted' ? '기고객으로 전환' : '고객 정보 수정'}
+                </h2>
               <button className="btn btn-ghost btn-icon" onClick={() => setModalMode(null)}><X size={16}/></button>
             </div>
             <CustomerForm
@@ -728,7 +762,7 @@ function Dashboard({ activeFields }) {
                   modalMode === 'create_contracted' ? 'contracted' :
                   modalMode === 'create_prospect' ? 'prospect' :
                   modalMode === 'convert_to_contracted' ? 'contracted' :
-                  (selected?.is_prospect ? 'prospect' : 'contracted')
+                  (!selected?.is_contracted ? 'prospect' : 'contracted')
                 }
               fields={activeFields}
               initial={(modalMode === 'edit' || modalMode === 'convert_to_contracted') ? selected : null}
