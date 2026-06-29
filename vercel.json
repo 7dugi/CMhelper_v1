@@ -1,22 +1,8 @@
 {
-  "builds": [
+  "rewrites": [
     {
-      "src": "api/**/*.py",
-      "use": "@vercel/python"
-    },
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "api/[...path].py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "CMhelper_web/frontend/dist/$1"
+      "source": "/((?!api/.*).*)",
+      "destination": "/index.html"
     }
   ]
 }
