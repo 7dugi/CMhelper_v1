@@ -1,0 +1,8 @@
+{
+  "name": "cmhelper-monorepo",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd CMhelper_web/frontend && npm install && npm run build",
+    "install": "cd CMhelper_web/frontend && npm install"
+  }
+}
