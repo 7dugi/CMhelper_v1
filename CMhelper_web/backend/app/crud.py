@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 
 from . import models, schemas
 
@@ -89,7 +90,10 @@ def seed_defaults(db: Session) -> None:
             if "options" in f:
                 existing.options = f["options"]
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
 
 
 # ── Field definitions ──────────────────────────────────────────────────────────
