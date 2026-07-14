@@ -45,7 +45,7 @@ class CMHelperAgent(tk.Tk):
         self.title("CMhelper PC 에이전트")
         self.geometry("600x550")
         self.resizable(False, False)
-        self.attributes('-topmost', True)
+        self.resizable(False, False)
         
         self.is_running = False
         
@@ -87,6 +87,9 @@ class CMHelperAgent(tk.Tk):
         self.stop_btn = ttk.Button(self.btn_frame, text="중지", command=self.stop_sending, state=tk.DISABLED)
         self.stop_btn.pack(side=tk.LEFT, padx=5)
         
+        self.cancel_btn = ttk.Button(self.btn_frame, text="발송 취소 (비우기)", command=self.cancel_queue)
+        self.cancel_btn.pack(side=tk.LEFT, padx=5)
+        
         self.tasks_to_send = []
         
         # If launched via protocol, auto-start might be useful, or we just let them click start.
@@ -114,12 +117,13 @@ class CMHelperAgent(tk.Tk):
         win32clipboard.SetClipboardData(clip_type, data)
         win32clipboard.CloseClipboard()
 
-    def copy_image_to_clipboard(self, image_path):
-        image = Image.open(image_path)
+    def copy_image_to_clipboard(self, image_data):
+        image = Image.open(io.BytesIO(image_data))
         output = io.BytesIO()
         image.convert("RGB").save(output, "BMP")
         data = output.getvalue()[14:]
         output.close()
+        image.close()
         self.send_to_clipboard(win32clipboard.CF_DIB, data)
 
     def activate_kakaotalk(self):
@@ -160,6 +164,27 @@ class CMHelperAgent(tk.Tk):
             self.start_btn.config(state=tk.NORMAL)
         except Exception as e:
             self.log(f"대기열 불러오기 실패: {e}")
+
+    def cancel_queue(self):
+        if self.is_running:
+            self.log("발송 중에는 취소할 수 없습니다. 먼저 중지해주세요.")
+            return
+        threading.Thread(target=self._run_cancel, daemon=True).start()
+
+    def _run_cancel(self):
+        try:
+            self.log("대기열을 취소하는 중...")
+            res = requests.delete(f"{API_BASE_URL}/messages/pending")
+            if res.status_code == 200:
+                self.log("대기열이 성공적으로 취소/비워졌습니다.")
+                self.tasks_to_send = []
+                for item in self.tree.get_children():
+                    self.tree.delete(item)
+                self.start_btn.config(state=tk.DISABLED)
+            else:
+                self.log(f"대기열 취소 실패: HTTP {res.status_code}")
+        except Exception as e:
+            self.log(f"대기열 취소 오류: {e}")
 
     def start_sending(self):
         if self.is_running or not self.tasks_to_send:
@@ -219,6 +244,12 @@ class CMHelperAgent(tk.Tk):
                 pyautogui.hotkey('ctrl', 'f')
                 time.sleep(0.5)
                 
+                # 기존에 검색된 이름 지우기
+                pyautogui.hotkey('ctrl', 'a')
+                time.sleep(0.1)
+                pyautogui.press('backspace')
+                time.sleep(0.1)
+                
                 # 이름 복사 후 붙여넣기
                 pyperclip.copy(customer_name)
                 pyautogui.hotkey('ctrl', 'v')
@@ -251,15 +282,10 @@ class CMHelperAgent(tk.Tk):
                     try:
                         img_res = requests.get(img_url)
                         if img_res.status_code == 200:
-                            temp_img = "temp.png"
-                            with open(temp_img, "wb") as f:
-                                f.write(img_res.content)
-                            self.copy_image_to_clipboard(temp_img)
+                            self.copy_image_to_clipboard(img_res.content)
                             time.sleep(0.5)
                             pyautogui.hotkey('ctrl', 'v')
                             time.sleep(0.5)
-                            if os.path.exists(temp_img):
-                                os.remove(temp_img)
                     except Exception as e:
                         self.log(f"이미지 첨부 실패: {e}")
                 
