@@ -4,10 +4,11 @@ import {
   Plus, Search, X, Send, Trash2, Eye, EyeOff,
   ChevronRight, UploadCloud, CheckCircle, AlertCircle,
   Shield, RefreshCw, ServerCrash, ChevronUp, ChevronDown,
-  Star, Clock, Edit2, Calendar
+  Star, Clock, Edit2, Calendar, MessageSquare
 } from 'lucide-react';
 import './index.css';
 import * as api from './api';
+import MessageSender from './MessageSender';
 
 /* ─── constants ─────────────────────────────────────────────────────── */
 const SYSTEM_KEYS = new Set([
@@ -1162,6 +1163,7 @@ export default function App() {
   const TABS = [
     { id:'dashboard', label:'고객 대시보드', icon:<Users size={18}/> },
     { id:'excel',     label:'엑셀 업로드',   icon:<FileSpreadsheet size={18}/> },
+    { id:'message',   label:'메시지 발송',   icon:<MessageSquare size={18}/> },
     { id:'settings',  label:'항목 설정',      icon:<Settings size={18}/> },
   ];
 
@@ -1193,6 +1195,7 @@ export default function App() {
       <main className="main">
         {tab === 'dashboard' && <Dashboard activeFields={active} />}
         {tab === 'excel'     && <ExcelImport activeFields={active} />}
+        {tab === 'message'   && <MessageSender />}
         {tab === 'settings'  && <FieldSettings fields={fields} onRefresh={loadFields} />}
       </main>
     </div>
