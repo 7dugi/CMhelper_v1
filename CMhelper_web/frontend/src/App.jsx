@@ -684,6 +684,7 @@ function Dashboard({ activeFields }) {
                     </button>
                   )}
                   <button className="btn btn-secondary btn-sm" onClick={(e) => openEdit(selected, e)} style={{ padding: '0.25rem 0.75rem', height: '32px' }}><Edit2 size={14}/> 수정</button>
+                  <button className="btn btn-danger btn-sm" onClick={(e) => handleDelete(selected, e)} style={{ padding: '0.25rem 0.75rem', height: '32px', background: 'var(--danger)', color: 'white', border: 'none' }}><Trash2 size={14}/> 삭제</button>
                 <button className="btn btn-ghost btn-icon" onClick={() => setSelected(null)}><X size={18}/></button>
               </div>
             </div>
