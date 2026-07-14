@@ -116,24 +116,31 @@ async def api_upload(file: UploadFile = File(...)):
 
     if SUPABASE_URL and SUPABASE_KEY:
         try:
-            import requests
+            import urllib.request
+            import urllib.error
+            import json
+            
+            upload_url = f"{SUPABASE_URL}/storage/v1/object/estimates/{new_filename}"
             headers = {
                 "Authorization": f"Bearer {SUPABASE_KEY}",
                 "apikey": SUPABASE_KEY,
                 "Content-Type": file.content_type or "application/octet-stream"
             }
-            upload_url = f"{SUPABASE_URL}/storage/v1/object/estimates/{new_filename}"
-            res = requests.post(upload_url, headers=headers, data=file_bytes)
             
-            if res.status_code == 200:
-                public_url = f"{SUPABASE_URL}/storage/v1/object/public/estimates/{new_filename}"
-                return {"url": public_url}
-            else:
+            req = urllib.request.Request(upload_url, data=file_bytes, headers=headers, method="POST")
+            
+            try:
+                with urllib.request.urlopen(req) as response:
+                    public_url = f"{SUPABASE_URL}/storage/v1/object/public/estimates/{new_filename}"
+                    return {"url": public_url}
+            except urllib.error.HTTPError as e:
+                error_body = e.read().decode('utf-8')
                 try:
-                    error_msg = res.json().get("message", res.text)
-                except Exception:
-                    error_msg = res.text
-                raise HTTPException(500, detail=f"Supabase 스토리지 에러: {error_msg} (HTTP {res.status_code})")
+                    error_json = json.loads(error_body)
+                    error_msg = error_json.get("message", error_body)
+                except:
+                    error_msg = error_body
+                raise HTTPException(500, detail=f"Supabase 스토리지 에러: {error_msg} (HTTP {e.code})")
         except Exception as e:
             if isinstance(e, HTTPException):
                 raise e
