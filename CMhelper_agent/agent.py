@@ -78,15 +78,21 @@ class CMHelperAgent(tk.Tk):
         self.btn_frame = ttk.Frame(self)
         self.btn_frame.pack(pady=10)
         
-        self.start_btn = ttk.Button(self.btn_frame, text="대기열 불러오기 및 발송 시작", command=self.start_sending)
+        self.load_btn = ttk.Button(self.btn_frame, text="대기열 불러오기", command=self.load_queue)
+        self.load_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.start_btn = ttk.Button(self.btn_frame, text="발송 시작", command=self.start_sending, state=tk.DISABLED)
         self.start_btn.pack(side=tk.LEFT, padx=5)
         
         self.stop_btn = ttk.Button(self.btn_frame, text="중지", command=self.stop_sending, state=tk.DISABLED)
         self.stop_btn.pack(side=tk.LEFT, padx=5)
         
+        self.tasks_to_send = []
+        
         # If launched via protocol, auto-start might be useful, or we just let them click start.
         if len(sys.argv) > 1 and sys.argv[1].startswith("cmhelper://"):
-            self.log("웹에서 호출되었습니다! [발송 시작]을 눌러주세요.")
+            self.log("웹에서 호출되었습니다! 대기열을 불러옵니다.")
+            self.after(500, self.load_queue)
             
     def log(self, msg):
         self.log_text.insert(tk.END, msg + "\n")
@@ -124,46 +130,54 @@ class CMHelperAgent(tk.Tk):
             return True
         return False
 
-    def start_sending(self):
+    def load_queue(self):
         if self.is_running:
+            return
+        self.log("서버에서 대기열을 가져옵니다...")
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        threading.Thread(target=self._fetch_tasks, daemon=True).start()
+
+    def _fetch_tasks(self):
+        try:
+            res = requests.get(f"{API_BASE_URL}/messages/pending")
+            if res.status_code != 200:
+                self.log(f"API 오류: HTTP {res.status_code}")
+                return
+            
+            self.tasks_to_send = res.json()
+            total = len(self.tasks_to_send)
+            if total == 0:
+                self.log("발송 대기 중인 메시지가 없습니다.")
+                return
+                
+            self.log(f"총 {total}건의 메시지를 불러왔습니다. [발송 시작]을 눌러주세요.")
+            self.progress_var.set(f"진행률: 0 / {total}")
+            
+            for t in self.tasks_to_send:
+                self.tree.insert("", "end", values=(t.get("customer_name"), t.get("customer_contact", ""), "대기", ""), tags=(str(t.get("id")),))
+                
+            self.start_btn.config(state=tk.NORMAL)
+        except Exception as e:
+            self.log(f"대기열 불러오기 실패: {e}")
+
+    def start_sending(self):
+        if self.is_running or not self.tasks_to_send:
             return
         self.is_running = True
         self.start_btn.config(state=tk.DISABLED)
+        self.load_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
-        self.log("서버에서 대기열을 가져옵니다...")
-        
-        # Clear treeview
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-            
-        threading.Thread(target=self._run_process, daemon=True).start()
+        threading.Thread(target=self._run_send_loop, daemon=True).start()
 
     def stop_sending(self):
         self.is_running = False
         self.log("발송 중지 요청됨. 현재 작업 후 정지합니다.")
 
-    def _run_process(self):
+    def _run_send_loop(self):
         try:
-            res = requests.get(f"{API_BASE_URL}/messages/pending")
-            if res.status_code != 200:
-                self.log(f"API 오류: HTTP {res.status_code}")
-                self._finish()
-                return
-            
-            tasks = res.json()
+            tasks = self.tasks_to_send
             total = len(tasks)
-            if total == 0:
-                self.log("발송 대기 중인 메시지가 없습니다.")
-                self._finish()
-                return
-                
-            self.log(f"총 {total}건의 메시지를 발견했습니다.")
-            self.progress_var.set(f"진행률: 0 / {total}")
-            
-            # Populate Treeview
-            for t in tasks:
-                self.tree.insert("", "end", values=(t.get("customer_name"), t.get("customer_contact", ""), "대기", ""), tags=(str(t.get("id")),))
-            
             sent_count = 0
             
             for i, task in enumerate(tasks):
@@ -272,9 +286,11 @@ class CMHelperAgent(tk.Tk):
 
     def _finish(self):
         self.is_running = False
-        self.start_btn.config(state=tk.NORMAL)
+        self.load_btn.config(state=tk.NORMAL)
+        self.start_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.DISABLED)
         self.status_var.set("상태: 대기 중")
+        self.tasks_to_send = []
 
 if __name__ == "__main__":
     register_protocol()
