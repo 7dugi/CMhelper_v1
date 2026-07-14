@@ -114,17 +114,27 @@ async def api_upload(file: UploadFile = File(...)):
     new_filename = f"{uuid.uuid4().hex}.{ext}"
     file_bytes = await file.read()
 
-    if supabase:
+    if SUPABASE_URL and SUPABASE_KEY:
         try:
-            res = supabase.storage.from_("estimates").upload(
-                path=new_filename,
-                file=file_bytes,
-                file_options={"content-type": file.content_type}
-            )
-            public_url = supabase.storage.from_("estimates").get_public_url(new_filename)
-            return {"url": public_url}
+            import requests
+            headers = {
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "apikey": SUPABASE_KEY,
+                "Content-Type": file.content_type or "application/octet-stream"
+            }
+            upload_url = f"{SUPABASE_URL}/storage/v1/object/estimates/{new_filename}"
+            res = requests.post(upload_url, headers=headers, data=file_bytes)
+            
+            if res.status_code == 200:
+                public_url = f"{SUPABASE_URL}/storage/v1/object/public/estimates/{new_filename}"
+                return {"url": public_url}
+            else:
+                error_msg = res.json().get("message", res.text)
+                raise HTTPException(500, detail=f"Supabase 스토리지 에러: {error_msg} (HTTP {res.status_code})")
         except Exception as e:
-            raise HTTPException(500, detail=f"Supabase 업로드 실패: {str(e)}")
+            if isinstance(e, HTTPException):
+                raise e
+            raise HTTPException(500, detail=f"Supabase 연동 실패: {str(e)}")
     else:
         try:
             file_path = os.path.join(UPLOAD_DIR, new_filename)
