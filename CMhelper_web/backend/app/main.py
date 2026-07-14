@@ -124,12 +124,15 @@ async def api_upload(file: UploadFile = File(...)):
             public_url = supabase.storage.from_("estimates").get_public_url(new_filename)
             return {"url": public_url}
         except Exception as e:
-            raise HTTPException(500, detail=f"이미지 업로드 실패: {str(e)} (Supabase 스토리지 'estimates' 버킷이 있는지 확인해주세요.)")
+            raise HTTPException(500, detail=f"Supabase 업로드 실패: {str(e)}")
     else:
-        file_path = os.path.join(UPLOAD_DIR, new_filename)
-        with open(file_path, "wb") as buffer:
-            buffer.write(file_bytes)
-        return {"url": f"/uploads/{new_filename}"}
+        try:
+            file_path = os.path.join(UPLOAD_DIR, new_filename)
+            with open(file_path, "wb") as buffer:
+                buffer.write(file_bytes)
+            return {"url": f"/uploads/{new_filename}"}
+        except Exception as e:
+            raise HTTPException(500, detail=f"로컬 업로드 실패 (서버 환경에서는 Supabase 연동이 필수입니다): {str(e)}")
 
 # ── API endpoints ──────────────────────────────────────────────────────────────
 
