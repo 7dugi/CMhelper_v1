@@ -286,6 +286,17 @@ def get_pending_message_tasks(db: Session) -> List[schemas.MessageTaskOut]:
         results.append(out)
     return results
 
+def get_recent_message_tasks(db: Session, limit: int = 200) -> List[schemas.MessageTaskOut]:
+    tasks = db.query(models.MessageTask).order_by(models.MessageTask.created_at.desc()).limit(limit).all()
+    results = []
+    for t in tasks:
+        out = schemas.MessageTaskOut.model_validate(t)
+        if t.customer:
+            out.customer_name = t.customer.name
+            out.customer_contact = t.customer.contact
+        results.append(out)
+    return results
+
 def update_message_task_status(db: Session, task_id: int, status: str) -> Optional[models.MessageTask]:
     row = db.query(models.MessageTask).filter_by(id=task_id).first()
     if not row:

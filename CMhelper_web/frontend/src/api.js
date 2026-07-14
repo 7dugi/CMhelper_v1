@@ -50,3 +50,4 @@ export const uploadFile = (file) => {
 // Message Tasks
 export const queueMessages = (tasks) => 
   req('/messages/queue', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(tasks) });
+export const getMessageHistory = (limit=200) => req(`/messages/history?limit=${limit}`);

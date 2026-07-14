@@ -15,7 +15,17 @@ export default function MessageSender() {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [sendResult, setSendResult] = useState('');
+  const [history, setHistory] = useState([]);
   const fileInputRef = useRef(null);
+
+  const fetchHistory = async () => {
+    try {
+      const data = await api.getMessageHistory(50); // Get latest 50
+      setHistory(data);
+    } catch (e) {
+      console.error("Failed to fetch history:", e);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -23,10 +33,13 @@ export default function MessageSender() {
       const data = await api.getCustomers('');
       setCustomers(data);
     } catch (e) {
-      console.error(e);
+      alert("데이터 로딩 실패: " + e.message);
     } finally {
       setLoading(false);
     }
+    fetchHistory();
+    const interval = setInterval(fetchHistory, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -133,7 +146,11 @@ export default function MessageSender() {
 
       await api.queueMessages(tasks);
       
-      setSendResult(`${selectedIds.size}명의 고객에게 발송 대기열 등록이 완료되었습니다! PC 에이전트가 순차적으로 발송합니다.`);
+      setSendResult(`${selectedIds.size}명의 고객에게 발송 대기열 등록이 완료되었습니다! PC 에이전트가 실행됩니다.`);
+      
+      // PC 프로그램 호출 (Custom Protocol)
+      window.location.href = 'cmhelper://start';
+      fetchHistory(); // 큐 즉시 새로고침
       
       setTimeout(() => {
         setSendResult('');
@@ -327,6 +344,48 @@ export default function MessageSender() {
               {selectedIds.size > 0 ? `${selectedIds.size}명에게 발송하기` : '발송 대상을 선택하세요'}
             </button>
           </div>
+        </div>
+      </div>
+      
+      {/* History Panel */}
+      <div className="card" style={{ marginTop: 25 }}>
+        <div className="card-hd" style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <h3 className="card-tit">발송 대기열 및 최근 기록 (자동 갱신)</h3>
+          <button className="btn btn-outline" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={fetchHistory}>새로고침</button>
+        </div>
+        <div className="card-body" style={{ padding: 0 }}>
+          {history.length === 0 ? (
+            <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-2)' }}>최근 발송 내역이 없습니다.</div>
+          ) : (
+            <table className="table" style={{ margin: 0, fontSize: '0.9rem' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: 150 }}>발송일시</th>
+                  <th style={{ width: 100 }}>고객명</th>
+                  <th style={{ width: 120 }}>연락처</th>
+                  <th style={{ width: 80 }}>상태</th>
+                  <th>메시지 내용</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map(item => (
+                  <tr key={item.id} style={{ opacity: item.status === 'failed' ? 0.7 : 1 }}>
+                    <td>{new Date(item.created_at + 'Z').toLocaleString('ko-KR')}</td>
+                    <td style={{ fontWeight: 500 }}>{item.customer_name}</td>
+                    <td>{item.customer_contact}</td>
+                    <td>
+                      {item.status === 'pending' && <span className="chip" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>대기</span>}
+                      {item.status === 'sent' && <span className="chip" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}>성공</span>}
+                      {item.status === 'failed' && <span className="chip" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>실패</span>}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 300 }} title={item.message_text}>
+                      {item.message_text}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
