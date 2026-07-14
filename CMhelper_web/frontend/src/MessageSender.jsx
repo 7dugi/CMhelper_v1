@@ -101,7 +101,7 @@ export default function MessageSender() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (selectedIds.size === 0) {
       alert("발송할 고객을 1명 이상 선택해주세요.");
       return;
@@ -111,19 +111,41 @@ export default function MessageSender() {
       return;
     }
     
-    // Simulate API call for queuing the messages
-    console.log("Queueing messages for:", Array.from(selectedIds));
-    console.log("Message template:", message);
-    if (imageFile) console.log("Attached image:", imageFile.name);
-    
-    setSendResult(`${selectedIds.size}명의 고객에게 발송 대기열에 등록되었습니다!\n(현재 UI 테스트 모드입니다. 실제 발송 에이전트는 추후 연동됩니다.)`);
-    
-    setTimeout(() => {
-      setSendResult('');
-      setSelectedIds(new Set());
-      setMessage('{{이름}} 고객님 안녕하세요!\n');
-      removeImage();
-    }, 5000);
+    setLoading(true);
+    try {
+      let imageUrl = null;
+      if (imageFile) {
+        const res = await api.uploadFile(imageFile);
+        imageUrl = res.url;
+      }
+
+      const tasks = Array.from(selectedIds).map(id => {
+        const c = customers.find(x => x.id === id);
+        let msg = message.replace(/{{이름}}/g, c.name || '');
+        msg = msg.replace(/{{차종}}/g, c.contract_car || '');
+        msg = msg.replace(/{{연락처}}/g, c.contact || '');
+        return {
+          customer_id: id,
+          message_text: msg,
+          image_url: imageUrl
+        };
+      });
+
+      await api.queueMessages(tasks);
+      
+      setSendResult(`${selectedIds.size}명의 고객에게 발송 대기열 등록이 완료되었습니다! PC 에이전트가 순차적으로 발송합니다.`);
+      
+      setTimeout(() => {
+        setSendResult('');
+        setSelectedIds(new Set());
+        setMessage('{{이름}} 고객님 안녕하세요!\n');
+        removeImage();
+      }, 5000);
+    } catch (e) {
+      alert("발송 큐 등록 실패: " + e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

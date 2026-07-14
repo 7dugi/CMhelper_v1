@@ -128,3 +128,28 @@ class ImportResult(BaseModel):
     success: int
     skipped: int
     errors:  List[str]
+
+
+# ── MessageTask ───────────────────────────────────────────────────────────────
+
+class MessageTaskCreate(BaseModel):
+    customer_id:  int
+    message_text: str
+    image_url:    Optional[str] = None
+
+class MessageTaskUpdate(BaseModel):
+    status: str # 'pending', 'sent', 'failed'
+
+class MessageTaskOut(BaseModel):
+    id:           int
+    customer_id:  int
+    message_text: str
+    image_url:    Optional[str] = None
+    status:       str
+    created_at:   datetime
+
+    # Include basic customer info for the agent
+    customer_name: Optional[str] = None
+    customer_contact: Optional[str] = None
+
+    model_config = {"from_attributes": True}

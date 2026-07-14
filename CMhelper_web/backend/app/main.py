@@ -343,3 +343,32 @@ def _read_file(content: bytes, filename: str) -> pd.DataFrame:
         return pd.read_excel(io.BytesIO(content))
     except Exception as e:
         raise HTTPException(400, detail=f"Could not parse file: {e}")
+
+# ── MessageTask Endpoints ─────────────────────────────────────────────────────
+
+@app.post("/api/messages/queue", response_model=List[schemas.MessageTaskOut])
+def api_queue_messages(tasks: List[schemas.MessageTaskCreate], db: Session = Depends(get_db)):
+    results = []
+    for t in tasks:
+        row = crud.create_message_task(db, t)
+        results.append(row)
+    return results
+
+@app.get("/api/messages/pending", response_model=List[schemas.MessageTaskOut])
+def api_get_pending_messages(db: Session = Depends(get_db)):
+    return crud.get_pending_message_tasks(db)
+
+@app.put("/api/messages/{task_id}/status", response_model=schemas.MessageTaskOut)
+def api_update_message_status(task_id: int, body: schemas.MessageTaskUpdate, db: Session = Depends(get_db)):
+    row = crud.update_message_task_status(db, task_id, body.status)
+    if not row:
+        raise HTTPException(404, detail="Message task not found")
+    
+    if body.status == "sent" and row.image_url and supabase:
+        try:
+            filename = row.image_url.split("/")[-1]
+            supabase.storage.from_("estimates").remove([filename])
+        except Exception as e:
+            print(f"Failed to delete image {filename}: {e}")
+            
+    return row

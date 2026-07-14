@@ -265,3 +265,32 @@ def delete_consultation(db: Session, log_id: int) -> bool:
     db.delete(row)
     db.commit()
     return True
+
+# ── Message Tasks ─────────────────────────────────────────────────────────────
+
+def create_message_task(db: Session, data: schemas.MessageTaskCreate) -> models.MessageTask:
+    row = models.MessageTask(**data.model_dump())
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def get_pending_message_tasks(db: Session) -> List[schemas.MessageTaskOut]:
+    tasks = db.query(models.MessageTask).filter_by(status="pending").order_by(models.MessageTask.created_at.asc()).all()
+    results = []
+    for t in tasks:
+        out = schemas.MessageTaskOut.model_validate(t)
+        if t.customer:
+            out.customer_name = t.customer.name
+            out.customer_contact = t.customer.contact
+        results.append(out)
+    return results
+
+def update_message_task_status(db: Session, task_id: int, status: str) -> Optional[models.MessageTask]:
+    row = db.query(models.MessageTask).filter_by(id=task_id).first()
+    if not row:
+        return None
+    row.status = status
+    db.commit()
+    db.refresh(row)
+    return row

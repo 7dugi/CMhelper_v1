@@ -39,3 +39,14 @@ export const importExcel = (file, mapping) => {
   fd.append('mapping', JSON.stringify(mapping));
   return req('/excel/import', { method:'POST', body:fd });
 };
+
+// File Upload
+export const uploadFile = (file) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  return req('/upload', { method:'POST', body:fd });
+};
+
+// Message Tasks
+export const queueMessages = (tasks) => 
+  req('/messages/queue', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(tasks) });

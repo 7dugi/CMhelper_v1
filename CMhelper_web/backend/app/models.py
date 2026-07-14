@@ -68,3 +68,15 @@ class Consultation(Base):
     created_at  = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
 
     customer = relationship("Customer", back_populates="consultations")
+
+class MessageTask(Base):
+    __tablename__ = "message_tasks"
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id  = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
+    message_text = Column(String, nullable=False)
+    image_url    = Column(String, nullable=True)
+    status       = Column(String, default="pending", nullable=False) # 'pending', 'sent', 'failed'
+    created_at   = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+    customer = relationship("Customer")
