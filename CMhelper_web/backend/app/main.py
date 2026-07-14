@@ -129,7 +129,10 @@ async def api_upload(file: UploadFile = File(...)):
                 public_url = f"{SUPABASE_URL}/storage/v1/object/public/estimates/{new_filename}"
                 return {"url": public_url}
             else:
-                error_msg = res.json().get("message", res.text)
+                try:
+                    error_msg = res.json().get("message", res.text)
+                except Exception:
+                    error_msg = res.text
                 raise HTTPException(500, detail=f"Supabase 스토리지 에러: {error_msg} (HTTP {res.status_code})")
         except Exception as e:
             if isinstance(e, HTTPException):
