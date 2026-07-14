@@ -286,6 +286,16 @@ def get_pending_message_tasks(db: Session) -> List[schemas.MessageTaskOut]:
         results.append(out)
     return results
 
+def cancel_pending_message_tasks(db: Session) -> int:
+    tasks = db.query(models.MessageTask).filter_by(status="pending").all()
+    count = 0
+    for t in tasks:
+        t.status = "failed"
+        t.error_message = "Canceled by user"
+        count += 1
+    db.commit()
+    return count
+
 def get_recent_message_tasks(db: Session, limit: int = 200) -> List[schemas.MessageTaskOut]:
     tasks = db.query(models.MessageTask).order_by(models.MessageTask.created_at.desc()).limit(limit).all()
     results = []

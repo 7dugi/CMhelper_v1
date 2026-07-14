@@ -368,6 +368,11 @@ def api_get_pending_messages(db: Session = Depends(get_db)):
 def api_get_message_history(limit: int = 200, db: Session = Depends(get_db)):
     return crud.get_recent_message_tasks(db, limit=limit)
 
+@app.delete("/api/messages/pending")
+def api_cancel_pending_messages(db: Session = Depends(get_db)):
+    count = crud.cancel_pending_message_tasks(db)
+    return {"detail": f"Canceled {count} tasks."}
+
 @app.put("/api/messages/{task_id}/status", response_model=schemas.MessageTaskOut)
 def api_update_message_status(task_id: int, body: schemas.MessageTaskUpdate, db: Session = Depends(get_db)):
     row = crud.update_message_task_status(db, task_id, body.status)
