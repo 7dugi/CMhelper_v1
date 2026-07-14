@@ -120,7 +120,8 @@ async def api_upload(file: UploadFile = File(...)):
             import urllib.error
             import json
             
-            upload_url = f"{SUPABASE_URL}/storage/v1/object/estimates/{new_filename}"
+            base_url = SUPABASE_URL.rstrip('/')
+            upload_url = f"{base_url}/storage/v1/object/estimates/{new_filename}"
             headers = {
                 "Authorization": f"Bearer {SUPABASE_KEY}",
                 "apikey": SUPABASE_KEY,
