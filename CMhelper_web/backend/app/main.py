@@ -115,13 +115,16 @@ async def api_upload(file: UploadFile = File(...)):
     file_bytes = await file.read()
 
     if supabase:
-        res = supabase.storage.from_("estimates").upload(
-            path=new_filename,
-            file=file_bytes,
-            file_options={"content-type": file.content_type}
-        )
-        public_url = supabase.storage.from_("estimates").get_public_url(new_filename)
-        return {"url": public_url}
+        try:
+            res = supabase.storage.from_("estimates").upload(
+                path=new_filename,
+                file=file_bytes,
+                file_options={"content-type": file.content_type}
+            )
+            public_url = supabase.storage.from_("estimates").get_public_url(new_filename)
+            return {"url": public_url}
+        except Exception as e:
+            raise HTTPException(500, detail=f"이미지 업로드 실패: {str(e)} (Supabase 스토리지 'estimates' 버킷이 있는지 확인해주세요.)")
     else:
         file_path = os.path.join(UPLOAD_DIR, new_filename)
         with open(file_path, "wb") as buffer:
@@ -349,10 +352,13 @@ def _read_file(content: bytes, filename: str) -> pd.DataFrame:
 @app.post("/api/messages/queue", response_model=List[schemas.MessageTaskOut])
 def api_queue_messages(tasks: List[schemas.MessageTaskCreate], db: Session = Depends(get_db)):
     results = []
-    for t in tasks:
-        row = crud.create_message_task(db, t)
-        results.append(row)
-    return results
+    try:
+        for t in tasks:
+            row = crud.create_message_task(db, t)
+            results.append(row)
+        return results
+    except Exception as e:
+        raise HTTPException(500, detail=f"발송 대기열 저장 실패: {str(e)}")
 
 @app.get("/api/messages/pending", response_model=List[schemas.MessageTaskOut])
 def api_get_pending_messages(db: Session = Depends(get_db)):
