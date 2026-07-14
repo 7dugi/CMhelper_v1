@@ -7,3 +7,4 @@ openpyxl
 python-multipart
 psycopg2-binary
 supabase
+requests
