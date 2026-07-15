@@ -30,12 +30,16 @@ def run_migrations(eng) -> None:
             existing_cust = {row[1] for row in result.fetchall()}
             result = conn.execute(text("PRAGMA table_info(field_definitions)"))
             existing_fd = {row[1] for row in result.fetchall()}
+            result = conn.execute(text("PRAGMA table_info(message_tasks)"))
+            existing_mt = {row[1] for row in result.fetchall()}
         else:
             # PostgreSQL
             result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='customers'"))
             existing_cust = {row[0] for row in result.fetchall()}
             result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='field_definitions'"))
             existing_fd = {row[0] for row in result.fetchall()}
+            result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='message_tasks'"))
+            existing_mt = {row[0] for row in result.fetchall()}
 
         # Customers table
         cust_cols = [
@@ -67,6 +71,15 @@ def run_migrations(eng) -> None:
             if col_name not in existing_fd:
                 ctype = sqlite_type if dialect == "sqlite" else pg_type
                 conn.execute(text(f"ALTER TABLE field_definitions ADD COLUMN {col_name} {ctype}"))
+
+        # MessageTasks table
+        mt_cols = [
+            ("scheduled_at", "DATETIME", "TIMESTAMP"),
+        ]
+        for col_name, sqlite_type, pg_type in mt_cols:
+            if col_name not in existing_mt:
+                ctype = sqlite_type if dialect == "sqlite" else pg_type
+                conn.execute(text(f"ALTER TABLE message_tasks ADD COLUMN {col_name} {ctype}"))
 
 
 run_migrations(engine)
