@@ -299,8 +299,10 @@ class CMHelperAgent(tk.Tk):
                     pyautogui.click(chat_tab_x, chat_tab_y)
                     time.sleep(0.5)
                     
-                    # 채팅 탭이 활성화된 상태에서 안전하게 Ctrl+F 로 검색창 열기
-                    pyautogui.hotkey('ctrl', 'f')
+                    # 우상단 검색 아이콘 클릭 - 우측 끝에서 약 130px, 위에서 35px
+                    search_x = win_x + win_w - 130
+                    search_y = win_y + 35
+                    pyautogui.click(search_x, search_y)
                     time.sleep(0.5)
                 
                 # 검색창 전체 선택 후 이름 붙여넣기 (기존 검색어 자동 교체)
