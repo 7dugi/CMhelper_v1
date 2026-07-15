@@ -304,7 +304,10 @@ class CMHelperAgent(tk.Tk):
                     time.sleep(0.5)
                 
                 # Ctrl+F를 누르면 검색창의 기존 텍스트가 모두 블록 지정되므로 바로 백스페이스로 지움 (Ctrl+A 절대 사용 금지 - 친구추가 단축키임)
-                pyautogui.press('backspace')
+                # 만약 블록 지정이 안 되었을 경우를 대비해 커서를 끝으로 보내고 백스페이스를 충분히 눌러 완전히 지웁니다.
+                pyautogui.press('end')
+                time.sleep(0.1)
+                pyautogui.press('backspace', presses=20)
                 time.sleep(0.1)
                 
                 # 이름 복사 후 붙여넣기
@@ -330,12 +333,7 @@ class CMHelperAgent(tk.Tk):
                     self.update_tree_status(task_id, "실패", "이름 불일치 또는 미등록")
                     continue
                 
-                # 7. 텍스트 붙여넣기
-                pyperclip.copy(msg_text)
-                pyautogui.hotkey('ctrl', 'v')
-                time.sleep(0.5)
-                
-                # 8. 이미지 첨부 (있을 경우)
+                # 7. 이미지 먼저 첨부 및 발송 (이미지 팝업이 텍스트 발송을 막는 현상 수정)
                 if img_url:
                     try:
                         img_res = requests.get(img_url, timeout=10)
@@ -344,10 +342,17 @@ class CMHelperAgent(tk.Tk):
                             time.sleep(0.5)
                             pyautogui.hotkey('ctrl', 'v')
                             time.sleep(0.8)
+                            pyautogui.press('enter') # 이미지 팝업 승인 또는 발송
+                            time.sleep(1.0)
                     except Exception as e:
                         self.log(f"이미지 첨부 실패: {e}")
+
+                # 8. 텍스트 붙여넣기 및 발송
+                pyperclip.copy(msg_text)
+                pyautogui.hotkey('ctrl', 'v')
+                time.sleep(0.5)
                 
-                # 9. 최종 엔터 (전송)
+                # 9. 최종 엔터 (텍스트 발송)
                 pyautogui.press('enter')
                 time.sleep(0.5)
                 
