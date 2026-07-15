@@ -285,19 +285,23 @@ class CMHelperAgent(tk.Tk):
                     break
                 time.sleep(0.8)
                 
-                # 3. 카카오톡 검색창 찾아서 직접 클릭 (친구추가 탭 방지)
+                # 3. 카카오톡 채팅 탭 클릭 후 검색창 클릭 (단축키 오류 방지)
                 kakao_hwnd = win32gui.FindWindow(None, "카카오톡")
                 if kakao_hwnd:
-                    # 카카오톡 창 위치/크기 확인
                     rect = win32gui.GetWindowRect(kakao_hwnd)
                     win_x = rect[0]
                     win_y = rect[1]
                     win_w = rect[2] - rect[0]
-                    win_h = rect[3] - rect[1]
                     
-                    # 검색 아이콘 클릭 (카카오톡 우상단 돋보기 아이콘 위치 - 창 너비에 따라 상대적 위치)
-                    search_x = win_x + int(win_w * 0.80)
-                    search_y = win_y + int(win_h * 0.04)
+                    # 좌측 두번째 아이콘 (채팅 탭) 클릭 - 창 크기와 무관하게 고정된 위치 (좌측에서 35px, 위에서 110px)
+                    chat_tab_x = win_x + 35
+                    chat_tab_y = win_y + 110
+                    pyautogui.click(chat_tab_x, chat_tab_y)
+                    time.sleep(0.5)
+                    
+                    # 우상단 검색 아이콘 클릭 - 우측 끝에서 약 120px, 위에서 35px
+                    search_x = win_x + win_w - 120
+                    search_y = win_y + 35
                     pyautogui.click(search_x, search_y)
                     time.sleep(0.5)
                 
