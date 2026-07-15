@@ -299,15 +299,11 @@ class CMHelperAgent(tk.Tk):
                     pyautogui.click(chat_tab_x, chat_tab_y)
                     time.sleep(0.5)
                     
-                    # 우상단 검색 아이콘 클릭 - 우측 끝에서 약 130px, 위에서 35px
-                    search_x = win_x + win_w - 130
-                    search_y = win_y + 35
-                    pyautogui.click(search_x, search_y)
+                    # 사용자가 요청한 방식: 채팅 탭 클릭 후 Ctrl+F 단축키로 검색창 열기
+                    pyautogui.hotkey('ctrl', 'f')
                     time.sleep(0.5)
                 
-                # 검색창 전체 선택 후 이름 붙여넣기 (기존 검색어 자동 교체)
-                pyautogui.hotkey('ctrl', 'a')
-                time.sleep(0.1)
+                # Ctrl+F를 누르면 검색창의 기존 텍스트가 모두 블록 지정되므로 바로 백스페이스로 지움 (Ctrl+A 절대 사용 금지 - 친구추가 단축키임)
                 pyautogui.press('backspace')
                 time.sleep(0.1)
                 
