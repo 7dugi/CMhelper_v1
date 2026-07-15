@@ -285,6 +285,10 @@ class CMHelperAgent(tk.Tk):
                     break
                 time.sleep(0.8)
                 
+                # 3. 채팅 탭으로 이동 후 검색 (Ctrl+2 = 채팅목록 탭, 친구추가 버튼 방지)
+                pyautogui.hotkey('ctrl', '2')
+                time.sleep(0.5)
+                
                 # Ctrl+F 로 채팅 검색창 열기
                 pyautogui.hotkey('ctrl', 'f')
                 time.sleep(0.5)
