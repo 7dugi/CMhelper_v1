@@ -293,9 +293,9 @@ class CMHelperAgent(tk.Tk):
                     win_y = rect[1]
                     win_w = rect[2] - rect[0]
                     
-                    # 좌측 두번째 아이콘 (채팅 탭) 클릭 - 창 크기와 무관하게 고정된 위치 (좌측에서 35px, 위에서 110px)
+                    # 좌측 두번째 아이콘 (채팅 탭) 클릭 - 창 크기와 무관하게 고정된 위치 (좌측에서 35px, 위에서 130px)
                     chat_tab_x = win_x + 35
-                    chat_tab_y = win_y + 110
+                    chat_tab_y = win_y + 130
                     pyautogui.click(chat_tab_x, chat_tab_y)
                     time.sleep(0.5)
                     
