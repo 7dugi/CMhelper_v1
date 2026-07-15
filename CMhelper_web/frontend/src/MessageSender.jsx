@@ -16,6 +16,7 @@ export default function MessageSender() {
   const [imagePreview, setImagePreview] = useState('');
   const [sendResult, setSendResult] = useState('');
   const [history, setHistory] = useState([]);
+  const [scheduledAt, setScheduledAt] = useState('');
   const fileInputRef = useRef(null);
 
   const fetchHistory = async () => {
@@ -140,7 +141,8 @@ export default function MessageSender() {
         return {
           customer_id: id,
           message_text: msg,
-          image_url: imageUrl
+          image_url: imageUrl,
+          scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null
         };
       });
 
@@ -297,6 +299,22 @@ export default function MessageSender() {
               onChange={e => setMessage(e.target.value)}
               placeholder="전송할 메시지 내용을 입력하세요."
             />
+            {/* Scheduling Area */}
+            <div style={{ marginBottom: 15 }}>
+              <label style={{ display: 'block', marginBottom: 5, fontSize: '0.9rem', color: 'var(--text-1)', fontWeight: 500 }}>
+                예약 발송 (선택)
+              </label>
+              <input 
+                type="datetime-local" 
+                className="form-control" 
+                value={scheduledAt}
+                onChange={e => setScheduledAt(e.target.value)}
+                style={{ width: '100%', padding: '10px', fontSize: '0.9rem', borderRadius: 6, border: '1px solid var(--border)' }}
+              />
+              <small style={{ color: 'var(--text-2)', display: 'block', marginTop: 4 }}>
+                * 비워두면 에이전트가 즉시 발송합니다.
+              </small>
+            </div>
 
             {/* Image Attachment Area */}
             <div style={{ marginBottom: 25, border: '1px dashed var(--border)', borderRadius: 8, padding: 15, background: 'var(--bg-card)' }}>
@@ -363,6 +381,7 @@ export default function MessageSender() {
                   <th style={{ width: 150 }}>발송일시</th>
                   <th style={{ width: 100 }}>고객명</th>
                   <th style={{ width: 120 }}>연락처</th>
+                  <th style={{ width: 120 }}>예약시간</th>
                   <th style={{ width: 80 }}>상태</th>
                   <th>메시지 내용</th>
                 </tr>
@@ -373,6 +392,11 @@ export default function MessageSender() {
                     <td>{new Date(item.created_at + 'Z').toLocaleString('ko-KR')}</td>
                     <td style={{ fontWeight: 500 }}>{item.customer_name}</td>
                     <td>{item.customer_contact}</td>
+                    <td>
+                      {item.scheduled_at 
+                        ? new Date(item.scheduled_at + 'Z').toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) 
+                        : '즉시 발송'}
+                    </td>
                     <td>
                       {item.status === 'pending' && <span className="chip" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>대기</span>}
                       {item.status === 'sent' && <span className="chip" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}>성공</span>}

@@ -275,8 +275,7 @@ def create_message_task(db: Session, data: schemas.MessageTaskCreate) -> models.
     db.refresh(row)
     return row
 
-def get_pending_message_tasks(db: Session) -> List[schemas.MessageTaskOut]:
-    tasks = db.query(models.MessageTask).filter_by(status="pending").order_by(models.MessageTask.created_at.asc()).all()
+def _format_message_tasks(tasks: List[models.MessageTask]) -> List[schemas.MessageTaskOut]:
     results = []
     for t in tasks:
         out = schemas.MessageTaskOut.model_validate(t)
@@ -285,6 +284,17 @@ def get_pending_message_tasks(db: Session) -> List[schemas.MessageTaskOut]:
             out.customer_contact = t.customer.contact
         results.append(out)
     return results
+
+def get_pending_message_tasks(db: Session) -> List[schemas.MessageTaskOut]:
+    now = datetime.datetime.utcnow()
+    tasks = db.query(models.MessageTask).filter(
+        models.MessageTask.status == "pending",
+        or_(
+            models.MessageTask.scheduled_at == None,
+            models.MessageTask.scheduled_at <= now
+        )
+    ).order_by(models.MessageTask.created_at.asc()).all()
+    return _format_message_tasks(tasks)
 
 def cancel_pending_message_tasks(db: Session) -> int:
     tasks = db.query(models.MessageTask).filter_by(status="pending").all()
@@ -298,14 +308,7 @@ def cancel_pending_message_tasks(db: Session) -> int:
 
 def get_recent_message_tasks(db: Session, limit: int = 200) -> List[schemas.MessageTaskOut]:
     tasks = db.query(models.MessageTask).order_by(models.MessageTask.created_at.desc()).limit(limit).all()
-    results = []
-    for t in tasks:
-        out = schemas.MessageTaskOut.model_validate(t)
-        if t.customer:
-            out.customer_name = t.customer.name
-            out.customer_contact = t.customer.contact
-        results.append(out)
-    return results
+    return _format_message_tasks(tasks)
 
 def update_message_task_status(db: Session, task_id: int, status: str) -> Optional[models.MessageTask]:
     row = db.query(models.MessageTask).filter_by(id=task_id).first()

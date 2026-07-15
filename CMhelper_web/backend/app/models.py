@@ -78,5 +78,6 @@ class MessageTask(Base):
     image_url    = Column(String, nullable=True)
     status       = Column(String, default="pending", nullable=False) # 'pending', 'sent', 'failed'
     created_at   = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    scheduled_at = Column(DateTime, nullable=True)
 
     customer = relationship("Customer")

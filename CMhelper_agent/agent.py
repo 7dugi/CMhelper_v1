@@ -47,7 +47,6 @@ def check_single_instance():
         return False, None
 
 API_BASE_URL = "https://cmhelper-v1.vercel.app/api"
-# Uncomment below for local testing
 # API_BASE_URL = "http://localhost:8002/api"
 
 def register_protocol():
