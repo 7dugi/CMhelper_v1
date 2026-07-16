@@ -75,6 +75,11 @@ def run_migrations(eng) -> None:
         # MessageTasks table
         mt_cols = [
             ("scheduled_at", "DATETIME", "TIMESTAMP"),
+            ("locked_by", "VARCHAR", "VARCHAR"),
+            ("locked_at", "DATETIME", "TIMESTAMP"),
+            ("heartbeat_at", "DATETIME", "TIMESTAMP"),
+            ("retry_count", "INTEGER DEFAULT 0", "INTEGER DEFAULT 0"),
+            ("error_code", "VARCHAR", "VARCHAR"),
         ]
         for col_name, sqlite_type, pg_type in mt_cols:
             if col_name not in existing_mt:
@@ -398,8 +403,10 @@ def api_queue_messages(tasks: List[schemas.MessageTaskCreate], db: Session = Dep
         raise HTTPException(500, detail=f"발송 대기열 저장 실패: {str(e)}")
 
 @app.get("/api/messages/pending", response_model=List[schemas.MessageTaskOut])
-def api_get_pending_messages(db: Session = Depends(get_db)):
-    return crud.get_pending_message_tasks(db)
+def api_get_pending_messages(agent_uuid: str, db: Session = Depends(get_db)):
+    if not agent_uuid:
+        raise HTTPException(400, detail="agent_uuid query parameter is required")
+    return crud.get_pending_message_tasks(db, agent_uuid)
 
 @app.get("/api/messages/history", response_model=List[schemas.MessageTaskOut])
 def api_get_message_history(limit: int = 200, db: Session = Depends(get_db)):
@@ -412,11 +419,11 @@ def api_cancel_pending_messages(db: Session = Depends(get_db)):
 
 @app.put("/api/messages/{task_id}/status", response_model=schemas.MessageTaskOut)
 def api_update_message_status(task_id: int, body: schemas.MessageTaskUpdate, db: Session = Depends(get_db)):
-    row = crud.update_message_task_status(db, task_id, body.status)
+    row = crud.update_message_task_status(db, task_id, body)
     if not row:
         raise HTTPException(404, detail="Message task not found")
     
-    if body.status == "sent" and row.image_url and supabase:
+    if body.status == "SUCCESS" and row.image_url and supabase:
         try:
             filename = row.image_url.split("/")[-1]
             supabase.storage.from_("estimates").remove([filename])
@@ -424,3 +431,12 @@ def api_update_message_status(task_id: int, body: schemas.MessageTaskUpdate, db:
             print(f"Failed to delete image {filename}: {e}")
             
     return row
+
+@app.put("/api/messages/{task_id}/heartbeat")
+def api_update_heartbeat(task_id: int, agent_uuid: str, db: Session = Depends(get_db)):
+    if not agent_uuid:
+        raise HTTPException(400, detail="agent_uuid query parameter is required")
+    success = crud.update_task_heartbeat(db, task_id, agent_uuid)
+    if not success:
+        raise HTTPException(404, detail="Task not found or not locked by this agent")
+    return {"detail": "Heartbeat updated"}

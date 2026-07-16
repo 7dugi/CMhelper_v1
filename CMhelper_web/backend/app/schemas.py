@@ -139,7 +139,10 @@ class MessageTaskCreate(BaseModel):
     scheduled_at: Optional[datetime] = None
 
 class MessageTaskUpdate(BaseModel):
-    status: str # 'pending', 'sent', 'failed'
+    status: str # 'RESERVED', 'PROCESSING', 'RECOVERY', 'SUCCESS', 'FAILED', 'CANCELLED'
+    error_code: Optional[str] = None
+    heartbeat_at: Optional[datetime] = None
+    locked_by: Optional[str] = None
 
 class MessageTaskOut(BaseModel):
     id:           int
@@ -149,6 +152,11 @@ class MessageTaskOut(BaseModel):
     status:       str
     created_at:   datetime
     scheduled_at: Optional[datetime] = None
+    locked_by:    Optional[str] = None
+    locked_at:    Optional[datetime] = None
+    heartbeat_at: Optional[datetime] = None
+    retry_count:  int
+    error_code:   Optional[str] = None
 
     # Include basic customer info for the agent
     customer_name: Optional[str] = None

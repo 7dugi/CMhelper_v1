@@ -69,6 +69,7 @@ class Consultation(Base):
 
     customer = relationship("Customer", back_populates="consultations")
 
+
 class MessageTask(Base):
     __tablename__ = "message_tasks"
 
@@ -76,8 +77,14 @@ class MessageTask(Base):
     customer_id  = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
     message_text = Column(String, nullable=False)
     image_url    = Column(String, nullable=True)
-    status       = Column(String, default="pending", nullable=False) # 'pending', 'sent', 'failed'
+    status       = Column(String, default="RESERVED", nullable=False) # 'RESERVED', 'PROCESSING', 'RECOVERY', 'SUCCESS', 'FAILED', 'CANCELLED'
     created_at   = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     scheduled_at = Column(DateTime, nullable=True)
+
+    locked_by    = Column(String, nullable=True)
+    locked_at    = Column(DateTime, nullable=True)
+    heartbeat_at = Column(DateTime, nullable=True)
+    retry_count  = Column(Integer, default=0, nullable=False)
+    error_code   = Column(String, nullable=True)
 
     customer = relationship("Customer")

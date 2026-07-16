@@ -36,3 +36,8 @@ CMhelper_web/frontend/CMhelper_webfrontend/
 Thumbs.db
 
 CMhelper_web/backend/uploads/
+
+# ── 빌드 결과물 (Build / Executables) ─────────────────────────────────────────
+*.exe
+build/
+*.log

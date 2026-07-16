@@ -359,7 +359,9 @@ export default function MessageSender() {
               disabled={selectedIds.size === 0}
             >
               <Send size={20} style={{ marginRight: 8 }}/>
-              {selectedIds.size > 0 ? `${selectedIds.size}명에게 발송하기` : '발송 대상을 선택하세요'}
+              {selectedIds.size > 0 
+                ? (scheduledAt ? `${selectedIds.size}명에게 예약 발송하기` : `${selectedIds.size}명에게 즉시 발송하기`) 
+                : '발송 대상을 선택하세요'}
             </button>
           </div>
         </div>
@@ -398,9 +400,16 @@ export default function MessageSender() {
                         : '즉시 발송'}
                     </td>
                     <td>
-                      {item.status === 'pending' && <span className="chip" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>대기</span>}
-                      {item.status === 'sent' && <span className="chip" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}>성공</span>}
-                      {item.status === 'failed' && <span className="chip" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>실패</span>}
+                      {item.status === 'RESERVED' && <span className="chip" style={{ background: 'var(--bg-card)', color: 'var(--text-2)' }}>⚪ 대기중</span>}
+                      {item.status === 'PROCESSING' && <span className="chip" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>🟡 발송중</span>}
+                      {item.status === 'RECOVERY' && <span className="chip" style={{ background: '#ffe0b2', color: '#e65100' }}>🟠 복구중</span>}
+                      {item.status === 'SUCCESS' && <span className="chip" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}>🟢 성공</span>}
+                      {item.status === 'FAILED' && <span className="chip" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }} title={item.error_code}>🔴 실패</span>}
+                      {item.status === 'CANCELLED' && <span className="chip" style={{ background: '#eeeeee', color: '#9e9e9e' }}>⚫ 취소됨</span>}
+                      {/* Fallback for old lowercase statuses if any */}
+                      {item.status === 'pending' && <span className="chip" style={{ background: 'var(--bg-card)', color: 'var(--text-2)' }}>⚪ 대기중</span>}
+                      {item.status === 'sent' && <span className="chip" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}>🟢 성공</span>}
+                      {item.status === 'failed' && <span className="chip" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>🔴 실패</span>}
                     </td>
                     <td style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 300 }} title={item.message_text}>
                       {item.message_text}

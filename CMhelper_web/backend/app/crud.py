@@ -270,6 +270,8 @@ def delete_consultation(db: Session, log_id: int) -> bool:
 
 def create_message_task(db: Session, data: schemas.MessageTaskCreate) -> models.MessageTask:
     row = models.MessageTask(**data.model_dump())
+    if row.status == "pending":
+        row.status = "RESERVED"  # Upgrading old default just in case
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -285,23 +287,67 @@ def _format_message_tasks(tasks: List[models.MessageTask]) -> List[schemas.Messa
         results.append(out)
     return results
 
-def get_pending_message_tasks(db: Session) -> List[schemas.MessageTaskOut]:
+def recover_orphan_tasks(db: Session):
     now = datetime.datetime.utcnow()
-    tasks = db.query(models.MessageTask).filter(
-        models.MessageTask.status == "pending",
+    cutoff = now - datetime.timedelta(minutes=5)
+    orphans = db.query(models.MessageTask).filter(
+        models.MessageTask.status == "PROCESSING",
+        models.MessageTask.heartbeat_at < cutoff
+    ).all()
+    for o in orphans:
+        o.retry_count += 1
+        if o.retry_count < 2:
+            o.status = "RECOVERY"
+            o.error_code = "HEARTBEAT_TIMEOUT"
+        else:
+            o.status = "FAILED"
+            o.error_code = "MAX_RETRY_EXCEEDED"
+    if orphans:
+        db.commit()
+
+def get_pending_message_tasks(db: Session, agent_uuid: str) -> List[schemas.MessageTaskOut]:
+    recover_orphan_tasks(db)
+    
+    now = datetime.datetime.utcnow()
+    # Find candidates
+    tasks_to_process = db.query(models.MessageTask.id).filter(
+        models.MessageTask.status.in_(["RESERVED", "RECOVERY"]),
         or_(
             models.MessageTask.scheduled_at == None,
             models.MessageTask.scheduled_at <= now
         )
+    ).order_by(models.MessageTask.created_at.asc()).limit(50).all()
+    
+    if not tasks_to_process:
+        return []
+        
+    ids = [t[0] for t in tasks_to_process]
+    
+    # Atomic Lock
+    db.query(models.MessageTask).filter(
+        models.MessageTask.id.in_(ids)
+    ).update({
+        models.MessageTask.status: "PROCESSING",
+        models.MessageTask.locked_by: agent_uuid,
+        models.MessageTask.locked_at: now,
+        models.MessageTask.heartbeat_at: now
+    }, synchronize_session=False)
+    db.commit()
+    
+    # Return locked tasks
+    locked_tasks = db.query(models.MessageTask).filter(
+        models.MessageTask.id.in_(ids),
+        models.MessageTask.locked_by == agent_uuid
     ).order_by(models.MessageTask.created_at.asc()).all()
-    return _format_message_tasks(tasks)
+    
+    return _format_message_tasks(locked_tasks)
 
 def cancel_pending_message_tasks(db: Session) -> int:
-    tasks = db.query(models.MessageTask).filter_by(status="pending").all()
+    tasks = db.query(models.MessageTask).filter(models.MessageTask.status.in_(["RESERVED", "RECOVERY"])).all()
     count = 0
     for t in tasks:
-        t.status = "failed"
-        t.error_message = "Canceled by user"
+        t.status = "CANCELLED"
+        t.error_code = "Canceled by user"
         count += 1
     db.commit()
     return count
@@ -310,11 +356,38 @@ def get_recent_message_tasks(db: Session, limit: int = 200) -> List[schemas.Mess
     tasks = db.query(models.MessageTask).order_by(models.MessageTask.created_at.desc()).limit(limit).all()
     return _format_message_tasks(tasks)
 
-def update_message_task_status(db: Session, task_id: int, status: str) -> Optional[models.MessageTask]:
+def update_message_task_status(db: Session, task_id: int, data: schemas.MessageTaskUpdate) -> Optional[models.MessageTask]:
     row = db.query(models.MessageTask).filter_by(id=task_id).first()
     if not row:
         return None
-    row.status = status
+    
+    patch = data.model_dump(exclude_unset=True)
+    if "status" in patch:
+        if patch["status"] in ["RECOVERY", "FAILED"] and row.status == "PROCESSING":
+            row.retry_count += 1
+            if row.retry_count >= 2:
+                row.status = "FAILED"
+                row.error_code = "MAX_RETRY_EXCEEDED"
+            else:
+                row.status = patch["status"]
+                if "error_code" in patch:
+                    row.error_code = patch["error_code"]
+        else:
+            row.status = patch["status"]
+            if "error_code" in patch:
+                row.error_code = patch["error_code"]
+    
+    if "heartbeat_at" in patch:
+        row.heartbeat_at = patch["heartbeat_at"]
+        
     db.commit()
     db.refresh(row)
     return row
+
+def update_task_heartbeat(db: Session, task_id: int, agent_uuid: str) -> bool:
+    row = db.query(models.MessageTask).filter_by(id=task_id, locked_by=agent_uuid, status="PROCESSING").first()
+    if not row:
+        return False
+    row.heartbeat_at = datetime.datetime.utcnow()
+    db.commit()
+    return True
