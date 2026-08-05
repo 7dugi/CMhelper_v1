@@ -10,8 +10,21 @@
 3. **No Undocumented Structures:** 문서와 다른 구조를 임의로 생성하지 말 것.
 4. **No Environment Variable Leakage:** 환경변수(`.env`)를 콘솔에 직접 출력하거나 로그로 남기지 말 것.
 5. **No Optimization that Breaks Features:** 작동 중인 기능을 최적화 명목으로 임의 변경하지 말 것.
-6. **No Code Omission:** 코드를 제어하거나 제안할 때 가독성을 이유로 `// 기존 코드 동일` 등으로 생략하지 말 것. 파일 수정 시 전체 코드를 온전하게 출력하라.
+6. **File Editing Rule:** 실제 파일을 수정할 때는 전체 코드를 반복 출력하지 말고, 도구를 사용해 직접 수정한 뒤 변경 파일과 핵심 diff만 보고하라. (단, 사용자가 명시적으로 전체 코드를 요구한 경우는 예외)
 7. **No Unapproved Dependency Upgrades:** 사용자의 명시적 승인 없이 `pip install --upgrade` 등으로 라이브러리 버전을 올리지 마라.
+
+## Document Priority
+문서와 실제 코드가 다를 경우, AI가 임의로 판단하지 말고 사용자에게 불일치 내용을 보고하라.
+기준 우선순위:
+1. 실제 실행 코드 및 DB 스키마
+2. AGENTS.md
+3. CURRENT_STATUS.md
+4. DATA_MODEL.md
+5. ARCHITECTURE.md
+6. API_CONTRACT.md
+7. PROJECT_OVERVIEW.md
+8. ADR.md
+9. TODO.md
 
 ## Technical Requirements (B2B Level Stability)
 1. **Never use blind coordinate clicks (Blind State Automation)**. Always use dynamic methods (UIAutomation / pywinauto) to locate elements. OpenCV is a fallback.
@@ -27,7 +40,9 @@
 
 ## Log & Privacy Policy (보안 및 로그 정책)
 - **Allowed to Log:** 발송 성공, 발송 실패, 시스템 에러 코드.
-- **Forbidden to Log:** 고객의 전체 전화번호, 전체 이름, 주고받은 메시지 전문, 개인정보 원문(PII). 임시 데이터는 즉시 폐기하라.
+- **Privacy & Raw Data Policy (개인정보 및 상담 원문):** 
+  - 상담 원문(전화번호, 이름 포함): 접근권한 제한, 암호화, 보관기간 설정 및 법적 검토 후 삭제 정책 확정 전까지 안전하게 격리 보관. 즉시 무조건 폐기로 단정하지 않음.
+  - 분석 데이터: 비식별 요약 데이터 및 최소한의 메타데이터(ConsultationInsight) 위주로 분리하여 AI 분석에 활용.
 - **Test Data Rule:** 테스트 코드 작성 및 실행 시에는 무조건 가짜 데이터(예: 홍길동, 010-0000-0000)만 사용하며, 실제 운영 데이터는 단 1건도 테스트에 유입시키지 않는다.
 - **Code Protection:** Ensure proprietary macro logic (source code) is designed to avoid exposure of sensitive automation strategies. 
 
@@ -55,3 +70,19 @@ When writing or modifying code for this project, always prioritize these guideli
 - 카나리아 테스트를 통해 업데이트 영향을 조기 탐지한다.
 - UIA 실패 시 Fallback 경로(OpenCV)를 유지한다.
 - Agent Auto Update 체계를 유지한다.
+
+## Product Expansion & Data Strategy
+
+CMhelper는 단순 자동화 도구가 아니라 자동차 금융 영업 특화 B2B SaaS로 발전하는 것을 장기 목표로 한다.
+
+AI Agent는 신규 기능을 개발할 때 다음 원칙을 준수한다.
+
+1. 기존 CRM / 발송 안정성을 해치지 않는다.
+2. 향후 영업 퍼널 데이터가 축적될 수 있도록 구조를 고려한다.
+3. 상담 원문 데이터는 법적 검토 및 보존/삭제 정책이 확정될 때까지 보안 환경에 격리 보관하며, 분석(AI Insight)에는 비식별 요약 데이터만 활용하도록 논리적으로 분리한다.
+4. 새로운 기능을 개발할 때 기존 데이터 모델과의 관계를 먼저 확인한다.
+6. Recipe / Template / AI / Analytics / Customer Portal 확장성을 고려한다.
+7. 현재 구현된 기능과 미래 계획을 혼동하지 않는다.
+8. 승인 없이 대규모 DB Schema 변경을 하지 않는다.
+9. 새로운 데이터 모델이 필요하면 먼저 DATA_MODEL.md를 업데이트하고 검토받는다.
+10. 제품 방향과 기술 구현을 분리하여 관리한다.

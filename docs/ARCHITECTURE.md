@@ -1,28 +1,36 @@
 # 아키텍처 및 환경 설정
 
-## 1. 시스템 구조 (Hybrid) 및 데이터 흐름
-- **Frontend:** React + Vite 기반 웹 대시보드
-- **Backend:** Python (FastAPI/Flask 등) 기반 API 서버 + SQLite/Supabase
-- **Local Agent:** Python + PyInstaller 기반의 PC 백그라운드 매크로 에이전트
+## Current Architecture [IMPLEMENTED]
+현재 시스템에 실제로 코드로 구현되어 작동(또는 테스트 대기) 중인 스택입니다.
+- **Frontend**: React + Vite 기반 SPA 대시보드
+- **Backend**: Python FastAPI 기반 API 서버
+- **ORM**: SQLAlchemy
+- **Database**: SQLite (로컬 개발 및 초기 배포용)
+- **Local Agent**: Python (pywinauto, pyperclip, win32gui) 백그라운드 매크로 에이전트
+- **Packaging**: PyInstaller (Windows 실행 파일 `agent.exe` 빌드)
 
 ### 데이터 흐름 (Data Flow)
 ```plaintext
 Web Dashboard
-    ↓
-Job Queue
-    ↓
-Local Agent
-    ↓
-KakaoTalk
+    ↓ (API)
+Job Queue (SQLite message_tasks)
+    ↓ (Auto Polling 30s)
+Local Agent (Atomic Lock & Processing)
+    ↓ (pywinauto / clipboard)
+KakaoTalk (PC)
 ```
-*(위 흐름에 따라 Audit Log, Retry Queue, Monitoring 로직이 에이전트와 백엔드 간에 상시 동기화됩니다.)*
 
-## 2. 핵심 기술 스택
-- 카카오톡 제어: `pywinauto` (고유 ID 제어 우선) + `OpenCV` (이미지 인식 보조)
-- 검증 로직: `pyperclip` (클립보드 검증), `win32gui`
+## Target Architecture [PLANNED]
+향후 B2B SaaS 확장을 위해 목표로 하는 기술 및 아키텍처입니다.
+- **Production DB**: PostgreSQL / Supabase (클라우드 환경 대규모 트래픽 대응)
+- **Authentication**: JWT 또는 Supabase Auth 기반 다중 사용자/테넌트 지원
+- **Remote Config**: 서버 중앙 관리형 UI 식별자 및 에이전트 설정 배포
+- **Monitoring**: Datadog 또는 Sentry를 통한 에이전트 에러/DPI 편차 실시간 모니터링
+- **Canary Test**: 매일 오전 자동 테스트 파이프라인(가짜 데이터 발송 후 결과 검증)
+- **Auto Update**: 로컬 에이전트의 자동 버전 감지 및 패치 다운로드 시스템
 
-## 3. 고정 개발 환경 사양 (필수 유지)
-- **Python:** 3.10.x (64-bit 권장)
-- **Target OS:** Windows 10/11
-- **디스플레이 배율:** 100% (OpenCV 템플릿 매칭 기준)
-- **패키징:** PyInstaller 5.x 이상
+---
+## 고정 개발 환경 사양 (Agent 측 필수 유지)
+- **Python**: 3.10.x (64-bit 권장)
+- **Target OS**: Windows 10/11
+- **디스플레이 배율**: 100% (OpenCV 템플릿 매칭 기준 권장)
