@@ -86,3 +86,15 @@ AI Agent는 신규 기능을 개발할 때 다음 원칙을 준수한다.
 8. 승인 없이 대규모 DB Schema 변경을 하지 않는다.
 9. 새로운 데이터 모델이 필요하면 먼저 DATA_MODEL.md를 업데이트하고 검토받는다.
 10. 제품 방향과 기술 구현을 분리하여 관리한다.
+
+## Git Workflow Policy
+
+원칙
+
+- main은 항상 안정 버전으로 유지
+- 기능 개발은 feature 브랜치
+- 문서 수정은 docs 브랜치
+- 저장소 정리는 chore 브랜치
+- 직접 main commit 금지
+- Pull Request 후 Merge
+- 기능 브랜치 내용은 CURRENT_STATUS에서 [PLANNED] 또는 [FEATURE BRANCH ONLY] 로 명확히 구분

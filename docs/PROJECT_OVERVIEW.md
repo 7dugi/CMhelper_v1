@@ -27,3 +27,11 @@ CMhelper는 단순한 "카카오톡 자동 발송 프로그램"을 넘어, 장�
 *   **P5: AI Insight** (인바운드 고객 상담 분석 및 최적 상품 조건 추천)
 *   **P6: Customer Portal** (고객 직접 접속용 계약 관리 및 시뮬레이션 웹페이지)
 *   **P7: 금융사/OEM용 Aggregated Analytics** (제조사/금융사용 비식별 집계 통계)
+
+---
+
+## 3. 프로젝트 관리 및 운영 원칙
+
+*   **Git Workflow 공식 운영 정책**: Git Flow Lite (`main`, `feature`, `docs`, `chore` 브랜치 분리 운용)
+    - 상세 정책은 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)를 참조하십시오.
+    - AI 협업 시에도 본 정책을 반드시 준수해야 합니다.
