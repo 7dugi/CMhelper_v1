@@ -1,5 +1,11 @@
 # 기술 의사결정 기록 (Architecture Decision Record)
 
+### 2026-08-06 | Technical Principles 제정
+- **주제:** 전사 기술 원칙(Technical Principles) 문서화
+- **선택:** `docs/TECHNICAL_PRINCIPLES.md` 신설 및 13대 원칙 제정
+- **결정 이유:**
+  - AI 협업 시 일관된 아키텍처 원칙(Fail Fast, Thin Client 등)을 준수하게 하여 무분별한 리팩토링이나 외부 라이브러리 도입을 차단함.
+  - 모든 설계 및 구현에 기준이 되는 단일 진실 공급원 역할을 수행.
 ### 2026-08-06 | Development Gate 도입
 - **주제:** Development Gate 도입
 - **선택:** Standard Gate + Architecture Gate 이중 절차

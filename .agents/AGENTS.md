@@ -18,13 +18,14 @@
 기준 우선순위:
 1. 실제 실행 코드 및 DB 스키마
 2. AGENTS.md
-3. CURRENT_STATUS.md
-4. DATA_MODEL.md
-5. ARCHITECTURE.md
-6. API_CONTRACT.md
-7. PROJECT_OVERVIEW.md
-8. ADR.md
-9. TODO.md
+3. TECHNICAL_PRINCIPLES.md
+4. CURRENT_STATUS.md
+5. DATA_MODEL.md
+6. ARCHITECTURE.md
+7. API_CONTRACT.md
+8. PROJECT_OVERVIEW.md
+9. ADR.md
+10. TODO.md
 
 ## Technical Requirements (B2B Level Stability)
 1. **Never use blind coordinate clicks (Blind State Automation)**. Always use dynamic methods (UIAutomation / pywinauto) to locate elements. OpenCV is a fallback.
