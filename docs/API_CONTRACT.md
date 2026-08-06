@@ -2,6 +2,10 @@
 
 ## 1. 구현된 API [IMPLEMENTED]
 
+- **인증 (Auth)** [FEATURE BRANCH ONLY]:
+  - POST `/api/auth/register` (성공: 201, 실패: 403, 409, 422)
+  - POST `/api/auth/login` (성공: 200, 실패: 401, 403)
+  - GET `/api/auth/me` (성공: 200, 실패: 401, 403)
 - **고객 CRUD**:
   - GET `/api/customers`
   - GET `/api/customers/{cid}`

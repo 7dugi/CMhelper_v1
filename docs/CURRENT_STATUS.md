@@ -7,6 +7,12 @@
 - 실제 main 구현 기준으로 정리됨
 - 기능 브랜치의 미병합 기능은 [PLANNED] 또는 [FEATURE BRANCH ONLY] 로 구분한다.
 
+## [FEATURE BRANCH ONLY] (feature/auth-foundation)
+- 인증 기반 구축 (JWT, 비밀번호 해싱, 로그인/가입/me API)
+- User, Company DB 모델 적용
+- Fail-Fast 환경변수 검증 시스템
+- Frontend Auth UI 및 토큰 기반 라우팅
+
 ## [IMPLEMENTED]
 - 고객 등록 및 수정
 - Excel 고객 데이터 가져오기

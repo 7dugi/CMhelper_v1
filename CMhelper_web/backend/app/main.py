@@ -107,7 +107,36 @@ app.add_middleware(
 import os
 import uuid
 import shutil
+import time
+from dotenv import load_dotenv
 from supabase import create_client, Client
+import jwt
+from jwt.exceptions import InvalidTokenError
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+load_dotenv()
+
+# ── Auth Configuration & Fail-Fast ─────────────────────────────────────────────
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+CMHELPER_INVITE_CODE = os.getenv("CMHELPER_INVITE_CODE")
+CMHELPER_OWNER_EMAIL = os.getenv("CMHELPER_OWNER_EMAIL")
+CMHELPER_DEFAULT_COMPANY_NAME = os.getenv("CMHELPER_DEFAULT_COMPANY_NAME")
+CMHELPER_DEFAULT_COMPANY_SLUG = os.getenv("CMHELPER_DEFAULT_COMPANY_SLUG")
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
+JWT_ALGORITHM = "HS256"
+
+if not all([JWT_SECRET_KEY, CMHELPER_INVITE_CODE, CMHELPER_OWNER_EMAIL, CMHELPER_DEFAULT_COMPANY_NAME, CMHELPER_DEFAULT_COMPANY_SLUG]):
+    raise RuntimeError("Fail-Fast: 필수 인증 환경변수(JWT_SECRET_KEY, CMHELPER_INVITE_CODE 등)가 누락되었습니다. (.env 파일을 확인하세요)")
+
+security = HTTPBearer()
+
+def create_access_token(data: dict) -> str:
+    to_encode = data.copy()
+    now = int(time.time())
+    expire = now + (JWT_EXPIRE_MINUTES * 60)
+    to_encode.update({"iat": now, "exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return encoded_jwt
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY")
@@ -175,6 +204,73 @@ async def api_upload(file: UploadFile = File(...)):
 def health():
     return {"status": "ok", "app": "CMhelper v1"}
 
+# ── Auth ───────────────────────────────────────────────────────────────────────
+
+@app.post("/api/auth/register", response_model=schemas.UserOut, status_code=201)
+def api_register(body: schemas.UserCreate, db: Session = Depends(get_db)):
+    if body.invite_code != CMHELPER_INVITE_CODE:
+        raise HTTPException(status_code=403, detail="Invalid invite code")
+    if len(body.password) < 8:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
+    if body.password != body.password_confirm:
+        raise HTTPException(status_code=422, detail="Passwords do not match")
+    
+    email = body.email.strip().lower()
+    if crud.get_user_by_email(db, email):
+        raise HTTPException(status_code=409, detail="Email already registered")
+        
+    company = crud.get_or_create_default_company(db, CMHELPER_DEFAULT_COMPANY_NAME, CMHELPER_DEFAULT_COMPANY_SLUG)
+    
+    role = models.UserRole.OWNER.value if email == CMHELPER_OWNER_EMAIL else models.UserRole.USER.value
+    
+    # Pass clean email to crud
+    body.email = email
+    user = crud.create_user(db, body, company.id, role)
+    return user
+
+@app.post("/api/auth/login", response_model=schemas.Token)
+def api_login(body: schemas.LoginRequest, db: Session = Depends(get_db)):
+    email = body.email.strip().lower()
+    user = crud.get_user_by_email(db, email)
+    if not user or not crud.verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    if user.status != models.UserStatus.ACTIVE.value:
+        raise HTTPException(status_code=403, detail="User is inactive")
+        
+    if user.company.status != models.CompanyStatus.ACTIVE.value:
+        raise HTTPException(status_code=403, detail="Company is inactive")
+        
+    token_payload = {
+        "sub": str(user.id),
+        "role": user.role,
+        "company_id": user.company_id
+    }
+    access_token = create_access_token(token_payload)
+    return schemas.Token(access_token=access_token)
+
+@app.get("/api/auth/me", response_model=schemas.UserOut)
+def api_auth_me(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        user_id_str = payload.get("sub")
+        if not user_id_str:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+    except InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        
+    user = db.query(models.User).filter_by(id=int(user_id_str)).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+        
+    if user.status != models.UserStatus.ACTIVE.value:
+        raise HTTPException(status_code=403, detail="User is inactive")
+        
+    if user.company.status != models.CompanyStatus.ACTIVE.value:
+        raise HTTPException(status_code=403, detail="Company is inactive")
+        
+    return user
 
 # ── Field definitions ──────────────────────────────────────────────────────────
 

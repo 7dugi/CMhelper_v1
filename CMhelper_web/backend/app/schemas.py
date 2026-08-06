@@ -4,6 +4,41 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 
+# ── Auth & Users ──────────────────────────────────────────────────────────────
+
+class UserCreate(BaseModel):
+    name: str
+    email: str
+    password: str
+    password_confirm: str
+    invite_code: str
+
+class UserOut(BaseModel):
+    id: int
+    company_id: int
+    email: str
+    name: str
+    role: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+class TokenPayload(BaseModel):
+    sub: str
+    exp: int
+    iat: int
+    role: str
+    company_id: int
+
 # ── Field Definition ──────────────────────────────────────────────────────────
 
 class FieldDefBase(BaseModel):

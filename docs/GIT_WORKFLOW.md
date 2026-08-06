@@ -26,9 +26,19 @@ Git 저장소를 항상 안정적으로 유지하고 AI(Codex, Claude Code, Anti
 - `docs: update architecture`
 - `chore: stop tracking build artifacts`
 
-## 4. Pull Request 규칙
+## 4. 작업 시작 절차 및 Pull Request 규칙
 - 모든 변경은 `feature`, `docs`, `chore` 브랜치에서 분리하여 작업합니다.
 - `main` 브랜치에는 **직접 commit 하지 않습니다.**
+- 작업 시작 전 다음 절차를 거칩니다:
+  1. 작업 등급 분류 (Standard Gate 또는 Architecture Gate)
+  2. Standard Gate 또는 Architecture Gate 계획서 작성
+  3. 사용자 승인 획득
+  4. 최신 `main`에서 작업 브랜치 생성
+  5. 구현
+  6. 테스트
+  7. 결과 보고
+  8. PR 생성
+  9. 리뷰 및 Merge
 - 모든 변경은 Pull Request를 통해 코드 및 문서 리뷰를 거친 후 Merge 해야 합니다.
 
 ## 5. Merge 규칙

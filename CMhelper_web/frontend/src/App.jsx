@@ -4,11 +4,12 @@ import {
   Plus, Search, X, Send, Trash2, Eye, EyeOff,
   ChevronRight, UploadCloud, CheckCircle, AlertCircle,
   Shield, RefreshCw, ServerCrash, ChevronUp, ChevronDown,
-  Star, Clock, Edit2, Calendar, MessageSquare
+  Star, Clock, Edit2, Calendar, MessageSquare, LogOut
 } from 'lucide-react';
 import './index.css';
 import * as api from './api';
 import MessageSender from './MessageSender';
+import AuthScreen from './auth/AuthScreen';
 
 /* ─── constants ─────────────────────────────────────────────────────── */
 const SYSTEM_KEYS = new Set([
@@ -1132,6 +1133,28 @@ export default function App() {
   const [loading, setLoading]   = useState(true);
   const [connErr, setConnErr]   = useState('');
 
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  const checkAuth = useCallback(async () => {
+    setAuthLoading(true);
+    try {
+      if (sessionStorage.getItem('cmhelper_token')) {
+        const u = await api.getAuthMe();
+        setUser(u);
+      } else {
+        setUser(null);
+      }
+    } catch (err) {
+      sessionStorage.removeItem('cmhelper_token');
+      setUser(null);
+    } finally {
+      setAuthLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { checkAuth(); }, [checkAuth]);
+
   const loadFields = useCallback(async () => {
     setLoading(true); setConnErr('');
     try {
@@ -1143,14 +1166,24 @@ export default function App() {
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { loadFields(); }, [loadFields]);
+  useEffect(() => {
+    if (user) {
+      loadFields();
+    }
+  }, [user, loadFields]);
 
-  if (loading) return (
+  const LoadingScreen = ({ text }) => (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:'1rem' }}>
       <div style={{ width:48, height:48, background:'linear-gradient(135deg,#6366f1,#8b5cf6)', borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--font-display)', fontWeight:800, fontSize:'1.1rem', color:'#fff', boxShadow:'0 4px 20px rgba(99,102,241,.4)' }}>CM</div>
-      <p style={{ color:'var(--text-2)', fontSize:'.9rem' }}>서버에 연결하는 중…</p>
+      <p style={{ color:'var(--text-2)', fontSize:'.9rem' }}>{text}</p>
     </div>
   );
+
+  if (authLoading) return <LoadingScreen text="사용자 확인 중…" />;
+  
+  if (!user) return <AuthScreen onLoginSuccess={checkAuth} />;
+
+  if (loading) return <LoadingScreen text="서버에 연결하는 중…" />;
 
   if (connErr) return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:'1.25rem', padding:'2rem', textAlign:'center' }}>
@@ -1184,12 +1217,22 @@ export default function App() {
             </div>
           ))}
         </nav>
-        <div className="sidebar-foot">
-          <div className="foot-avatar"><Database size={16} style={{ color:'var(--success)' }}/></div>
-          <div className="foot-info">
-            <strong>관리자</strong>
-            <span>로컬 모드</span>
+        <div className="sidebar-foot" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.8rem 1rem', borderTop: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="foot-avatar"><Database size={16} style={{ color:'var(--success)' }}/></div>
+            <div className="foot-info">
+              <strong>{user.name}</strong>
+              <span>{user.role === 'OWNER' ? '최고 관리자' : (user.role === 'ADMIN' ? '관리자' : '일반 사용자')}</span>
+            </div>
           </div>
+          <button 
+            className="btn btn-ghost btn-icon" 
+            title="로그아웃" 
+            onClick={() => { sessionStorage.removeItem('cmhelper_token'); setUser(null); }}
+            style={{ color: 'var(--text-3)' }}
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </aside>
 
