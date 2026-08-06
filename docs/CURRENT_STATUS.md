@@ -34,7 +34,7 @@
 - OpenCV Fallback
 - Remote Config
 - Canary Test
-- 인증 및 사용자별 데이터 분리
+- 인증 및 사용자별 데이터 분리 (JWT Access Token 전용, 만료 2시간)
 - Sales Funnel
 - Recipe / Template
 - Customer Portal
@@ -43,10 +43,12 @@
 - Atomic Lock
 - Heartbeat API
 - Orphan Task Recovery
-- Agent UUID 기반 작업 선점
+- Agent UUID 기반 작업 선점 (향후 API Key/Device Token 연동)
 - TimedRotatingFileHandler 감사 로그
 
 ## [EXCLUDED FROM CURRENT SCOPE]
+- JWT Refresh Token (Sprint B 이후 도입)
+- Windows Agent JWT 인증 (기존 API 유지, 향후 API Key 도입)
 - Agent 상시 실행
 - Windows Service
 - Tray Agent

@@ -6,6 +6,22 @@
 - **결정 이유:**
   - AI 협업 시 일관된 아키텍처 원칙(Fail Fast, Thin Client 등)을 준수하게 하여 무분별한 리팩토링이나 외부 라이브러리 도입을 차단함.
   - 모든 설계 및 구현에 기준이 되는 단일 진실 공급원 역할을 수행.
+
+### 2026-08-06 | Authentication: JWT Refresh Token 미도입
+- **주제:** JWT 인증 시 Refresh Token 구현 여부
+- **선택:** 이번 Sprint에서는 Access Token만 사용 (만료시간 2시간, SessionStorage 보관)
+- **배제:** Refresh Token 체계 도입
+- **결정 이유:**
+  - 복잡한 Refresh 로직 구현보다 B2B 도구에 맞는 핵심 인증 기능 우선 개발
+  - Refresh Token 도입은 Sprint B 이후로 연기하여 제품 출시 일정을 단축
+
+### 2026-08-06 | Authentication: Windows Agent 인증 예외
+- **주제:** Windows Agent 애플리케이션의 인증 처리
+- **선택:** 이번 Sprint에서 Agent는 JWT 인증 대상에서 제외하고 기존 API를 그대로 사용
+- **배제:** Agent에 웹과 동일한 JWT Auth 강제 적용
+- **결정 이유:**
+  - 현재 Agent 구조를 대대적으로 변경하지 않기 위함
+  - 향후 멀티 회사/멀티 Agent 구조 도입 시 API Key 또는 Device Token 기반으로 안전하게 전환할 예정
 ### 2026-08-06 | Development Gate 도입
 - **주제:** Development Gate 도입
 - **선택:** Standard Gate + Architecture Gate 이중 절차
