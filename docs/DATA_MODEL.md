@@ -2,6 +2,8 @@
 
 ## 1. 구현된 모델 [IMPLEMENTED]
 
+- **Company** [FEATURE BRANCH ONLY] (slug 고유키, ACTIVE/INACTIVE 상태)
+- **User** [FEATURE BRANCH ONLY] (password_hash 암호화, 역할 분리)
 - **FieldDefinition**
 - **Customer**
 - **Consultation**

@@ -8,3 +8,6 @@ python-multipart
 psycopg2-binary
 supabase
 requests
+PyJWT>=2.8.0
+bcrypt
+python-dotenv

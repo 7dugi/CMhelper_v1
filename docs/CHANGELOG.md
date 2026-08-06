@@ -3,6 +3,11 @@
 모든 주요 변경 사항은 이 문서에 기록됩니다. 기능은 실제로 코드에 구현되고 안정성이 검증된 것만 정식 버전에 기록합니다.
 
 ## [Unreleased]
+- **[Feature]** B2B SaaS 확장을 위한 인증 시스템 기반 구축 (feature/auth-foundation)
+  - JWT 기반 회원가입, 로그인, `/auth/me` API 구현
+  - User, Company DB 추가 및 상태(Enum) 도입
+  - 서버 시작 시 필수 인증 환경변수 검증(Fail-Fast) 도입
+  - pytest를 이용한 백엔드 독립 테스트 구성
 - pywinauto 기반 UI 제어 전환 계획
 - V4.1 엔터프라이즈 복구 기능 (Heartbeat, Orphan Task Recovery, Retry Limit, Audit Log Rotation 등)
 - 다중 에이전트 동시 구동 시 SQLite `locked_by` 로직(Atomic Lock) 구현 계획

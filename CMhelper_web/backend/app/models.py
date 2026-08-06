@@ -1,8 +1,48 @@
 import datetime
 import uuid
+import enum
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from .database import Base
+
+class CompanyStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+class UserRole(str, enum.Enum):
+    OWNER = "OWNER"
+    ADMIN = "ADMIN"
+    USER = "USER"
+
+class UserStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+class Company(Base):
+    __tablename__ = "companies"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    name       = Column(String, nullable=False)
+    slug       = Column(String, nullable=False, unique=True, index=True)
+    status     = Column(String, default=CompanyStatus.ACTIVE.value, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+    users = relationship("User", back_populates="company")
+
+class User(Base):
+    __tablename__ = "users"
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    company_id    = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    email         = Column(String, nullable=False, unique=True, index=True)
+    password_hash = Column(String, nullable=False)
+    name          = Column(String, nullable=False)
+    role          = Column(String, default=UserRole.USER.value, nullable=False)
+    status        = Column(String, default=UserStatus.ACTIVE.value, nullable=False)
+    created_at    = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    updated_at    = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False)
+
+    company = relationship("Company", back_populates="users")
 
 
 class FieldDefinition(Base):

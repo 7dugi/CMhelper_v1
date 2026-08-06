@@ -10,7 +10,57 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
+import bcrypt
 from . import models, schemas
+
+def get_password_hash(password: str) -> str:
+    pwd_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(pwd_bytes, salt)
+    return hashed_password.decode('utf-8')
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    try:
+        password_byte_enc = plain_password.encode('utf-8')
+        hashed_password_byte_enc = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(password_byte_enc, hashed_password_byte_enc)
+    except Exception:
+        return False
+
+# ── Auth & Users ──────────────────────────────────────────────────────────────
+
+def get_or_create_default_company(db: Session, name: str, slug: str) -> models.Company:
+    company = db.query(models.Company).filter_by(slug=slug).first()
+    if company:
+        return company
+    try:
+        new_company = models.Company(name=name, slug=slug)
+        db.add(new_company)
+        db.commit()
+        db.refresh(new_company)
+        return new_company
+    except IntegrityError:
+        db.rollback()
+        # Concurrent creation handle
+        return db.query(models.Company).filter_by(slug=slug).first()
+
+def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
+    return db.query(models.User).filter_by(email=email).first()
+
+def create_user(db: Session, data: schemas.UserCreate, company_id: int, role: str) -> models.User:
+    hashed_password = get_password_hash(data.password)
+    user = models.User(
+        company_id=company_id,
+        email=data.email,
+        password_hash=hashed_password,
+        name=data.name,
+        role=role,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
 
 
 # ── Expiry computation helper ──────────────────────────────────────────────────
