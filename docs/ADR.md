@@ -1,5 +1,19 @@
 # 기술 의사결정 기록 (Architecture Decision Record)
 
+### 2026-08-06 | Development Gate 도입
+- **주제:** Development Gate 도입
+- **선택:** Standard Gate + Architecture Gate 이중 절차
+- **배제:** 
+  - 모든 작업에 동일한 긴 계획서 적용
+  - 계획 없이 즉시 구현
+- **결정 이유:**
+  - 중요 변경의 설계 누락 방지
+  - 소규모 작업의 불필요한 절차 방지
+  - AI 간 작업 품질 표준화
+  - 반복적인 계획 수정 감소
+  - 코드와 문서의 정합성 유지
+
+
 ### 2026-08-05 | 자동차 금융 영업 특화 데이터 및 Recipe 기반 플랫폼 확장
 - **주제:** CMhelper 장기 제품 방향성 및 플랫폼 확장 아키텍처
 - **선택:** CRM + Sales Funnel + Recipe/Template + AI Insight + Customer Portal 구조를 장기 확장 방향으로 정의

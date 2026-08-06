@@ -32,6 +32,7 @@ CMhelper는 단순한 "카카오톡 자동 발송 프로그램"을 넘어, 장�
 
 ## 3. 프로젝트 관리 및 운영 원칙
 
+*   **중요 기능은 `docs/DEVELOPMENT_GATE.md`의 Architecture Gate를 통과한 후 개발합니다.**
 *   **Git Workflow 공식 운영 정책**: Git Flow Lite (`main`, `feature`, `docs`, `chore` 브랜치 분리 운용)
     - 상세 정책은 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)를 참조하십시오.
     - AI 협업 시에도 본 정책을 반드시 준수해야 합니다.

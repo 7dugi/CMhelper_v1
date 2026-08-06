@@ -87,6 +87,16 @@ AI Agent는 신규 기능을 개발할 때 다음 원칙을 준수한다.
 9. 새로운 데이터 모델이 필요하면 먼저 DATA_MODEL.md를 업데이트하고 검토받는다.
 10. 제품 방향과 기술 구현을 분리하여 관리한다.
 
+## Development Gate Policy
+
+- 모든 작업은 Standard Gate 또는 Architecture Gate로 분류한다.
+- DB, API, 인증, 개인정보, Agent, 배포 구조 변경은 Architecture Gate 대상이다.
+- Architecture Gate 작성 전 실제 코드와 공식 문서를 읽는다.
+- docs/DEVELOPMENT_GATE.md의 필수 항목과 체크리스트를 모두 충족한다.
+- 사용자 승인 전 기능 코드를 수정하지 않는다.
+- 승인된 Scope, Data Model, API Contract, Security Policy를 임의 변경하지 않는다.
+- 변경이 필요하면 Change Request를 먼저 제출한다.
+
 ## Git Workflow Policy
 
 원칙
