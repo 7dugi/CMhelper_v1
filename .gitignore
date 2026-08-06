@@ -7,7 +7,7 @@ venv/
 ENV/
 env/
 
-# ── Database (데이터는 로컬에만 보관) ─────────────────────────────────────────
+# ── Database ─────────────────────────────────────────────────────────────────
 *.db
 *.sqlite
 *.sqlite3
@@ -16,17 +16,13 @@ CMhelper_web/backend/data/
 # ── Node / Frontend ───────────────────────────────────────────────────────────
 node_modules/
 dist/
+CMhelper_web/frontend/dist/
 .cache/
-jspm_packages/
-web_modules/
-
-# ── 중복 scaffold 폴더 (실제 사용 안 함) ──────────────────────────────────────
-CMhelper_web/frontend/CMhelper_webfrontend/
 
 # ── 환경 변수 ─────────────────────────────────────────────────────────────────
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # ── IDE / OS ──────────────────────────────────────────────────────────────────
 .vscode/
@@ -35,4 +31,13 @@ CMhelper_web/frontend/CMhelper_webfrontend/
 .DS_Store
 Thumbs.db
 
-CMhelper_web/backend/uploads/
+# ── 업로드 파일 ─────────────────────────────────────────────────────────────────
+uploads/
+
+# ── 빌드 결과물 (Build / Executables) ─────────────────────────────────────────
+*.exe
+*.pkg
+*.toc
+build/
+logs/
+*.log
