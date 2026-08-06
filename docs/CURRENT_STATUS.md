@@ -1,7 +1,11 @@
 # 현재 상태
 
-## 현재 브랜치
-- chore/repository-sync (base: origin/main)
+## 기준 브랜치
+- main
+
+## 문서 동기화 상태
+- 실제 main 구현 기준으로 정리됨
+- 기능 브랜치의 미병합 기능은 [PLANNED] 또는 [FEATURE BRANCH ONLY] 로 구분한다.
 
 ## [IMPLEMENTED]
 - 고객 등록 및 수정
