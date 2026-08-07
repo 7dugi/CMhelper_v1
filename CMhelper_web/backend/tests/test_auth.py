@@ -295,16 +295,19 @@ def test_missing_env_vars_fail_fast():
     import importlib
     import os
     import app.main
-    # Remove a required env var
-    original = os.environ.get("JWT_SECRET_KEY")
-    del os.environ["JWT_SECRET_KEY"]
-    try:
-        with pytest.raises(RuntimeError) as exc_info:
-            importlib.reload(app.main)
-        assert "Fail-Fast" in str(exc_info.value)
-    finally:
-        os.environ["JWT_SECRET_KEY"] = original
-        importlib.reload(app.main) # restore
+    from unittest.mock import patch
+    
+    with patch("dotenv.load_dotenv"):
+        # Remove a required env var
+        original = os.environ.get("JWT_SECRET_KEY")
+        del os.environ["JWT_SECRET_KEY"]
+        try:
+            with pytest.raises(RuntimeError) as exc_info:
+                importlib.reload(app.main)
+            assert "Fail-Fast" in str(exc_info.value)
+        finally:
+            os.environ["JWT_SECRET_KEY"] = original
+            importlib.reload(app.main) # restore
 
 def test_password_confirm_not_in_db():
     res = client.post("/api/auth/register", json={
