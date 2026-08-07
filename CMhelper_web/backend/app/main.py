@@ -147,7 +147,11 @@ if SUPABASE_URL and SUPABASE_KEY:
 else:
     supabase = None
 
-IS_VERCEL = os.getenv("VERCEL") == "1"
+IS_VERCEL = (
+    os.getenv("VERCEL") == "1" 
+    or os.path.abspath(__file__).startswith("/var/task") 
+    or "AWS_LAMBDA_FUNCTION_NAME" in os.environ
+)
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "uploads")
 
 if not IS_VERCEL:

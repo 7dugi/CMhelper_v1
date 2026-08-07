@@ -3,7 +3,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-IS_VERCEL = os.getenv("VERCEL") == "1"
+IS_VERCEL = (
+    os.getenv("VERCEL") == "1" 
+    or os.path.abspath(__file__).startswith("/var/task") 
+    or "AWS_LAMBDA_FUNCTION_NAME" in os.environ
+)
 
 if DATABASE_URL:
     if DATABASE_URL.startswith("postgres://"):
