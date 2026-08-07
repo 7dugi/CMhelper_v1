@@ -2,7 +2,6 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 pydantic
-pandas
 openpyxl
 python-multipart
 psycopg2-binary

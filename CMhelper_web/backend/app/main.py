@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import io
 import json
+import csv
+import openpyxl
 from typing import List
-
-import pandas as pd
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -375,9 +375,11 @@ def api_delete_consultation(log_id: int, db: Session = Depends(get_db)):
 @app.post("/api/excel/parse")
 async def api_excel_parse(file: UploadFile = File(...)):
     _check_ext(file.filename)
-    df = _read_file(await file.read(), file.filename)
-    headers = [str(c).strip() for c in df.columns]
-    preview = df.head(5).fillna("").astype(str).to_dict(orient="records")
+    rows = _read_file(await file.read(), file.filename)
+    headers = list(rows[0].keys()) if rows else []
+    preview = []
+    for r in rows[:5]:
+        preview.append({k: str(v) if v is not None else "" for k, v in r.items()})
     return {"headers": headers, "preview": preview}
 
 
@@ -393,8 +395,8 @@ async def api_excel_import(
     except Exception:
         raise HTTPException(400, detail="Invalid mapping JSON.")
 
-    df = _read_file(await file.read(), file.filename)
-    df.columns = [str(c).strip() for c in df.columns]
+    rows = _read_file(await file.read(), file.filename)
+    columns = list(rows[0].keys()) if rows else []
 
     system_keys = {
         "name","contact","region","company","contract_car","contract_date","contract_months",
@@ -405,7 +407,7 @@ async def api_excel_import(
     success = skipped = 0
     errors: List[str] = []
 
-    for i, row in df.iterrows():
+    for i, row in enumerate(rows):
         row_num = i + 2
         try:
             sys_data: dict = {}
@@ -413,10 +415,10 @@ async def api_excel_import(
 
             for m in mapping_list:
                 ec, db_f = m.get("excel_col", ""), m.get("db_field", "")
-                if not ec or not db_f or ec not in df.columns:
+                if not ec or not db_f or ec not in columns:
                     continue
-                val = row[ec]
-                if pd.isna(val) or str(val).strip() == "":
+                val = row.get(ec)
+                if val is None or str(val).strip() == "":
                     val = None
                 else:
                     val = str(val).strip()
@@ -482,11 +484,38 @@ def _check_ext(filename: str):
         raise HTTPException(400,
             detail="Only .xlsx / .xls / .csv files are accepted.")
 
-def _read_file(content: bytes, filename: str) -> pd.DataFrame:
+def _read_file(content: bytes, filename: str) -> List[dict]:
     try:
         if filename.lower().endswith(".csv"):
-            return pd.read_csv(io.BytesIO(content))
-        return pd.read_excel(io.BytesIO(content))
+            text = content.decode("utf-8-sig")
+            reader = csv.DictReader(io.StringIO(text))
+            rows = []
+            if reader.fieldnames:
+                headers = [str(h).strip() for h in reader.fieldnames]
+                reader.fieldnames = headers
+                for row in reader:
+                    rows.append(row)
+            return rows
+
+        wb = openpyxl.load_workbook(filename=io.BytesIO(content), data_only=True)
+        sheet = wb.active
+        
+        rows_iter = sheet.iter_rows(values_only=True)
+        try:
+            headers_raw = next(rows_iter)
+        except StopIteration:
+            return []
+            
+        headers = [str(h).strip() if h is not None else f"Column_{i}" for i, h in enumerate(headers_raw)]
+        
+        data = []
+        for row in rows_iter:
+            row_dict = {}
+            for i, h in enumerate(headers):
+                val = row[i] if i < len(row) else None
+                row_dict[h] = val
+            data.append(row_dict)
+        return data
     except Exception as e:
         raise HTTPException(400, detail=f"Could not parse file: {e}")
 
