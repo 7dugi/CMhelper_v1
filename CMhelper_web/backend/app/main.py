@@ -18,8 +18,6 @@ from . import crud, models, schemas
 
 # ── DB bootstrap ───────────────────────────────────────────────────────────────
 
-Base.metadata.create_all(bind=engine)
-
 
 def run_migrations(eng) -> None:
     """Forward-only column migrations for SQLite and Postgres."""
@@ -82,19 +80,22 @@ def run_migrations(eng) -> None:
                 conn.execute(text(f"ALTER TABLE message_tasks ADD COLUMN {col_name} {ctype}"))
 
 
-run_migrations(engine)
-
-# Seed default field definitions once
-_boot_db = next(get_db())
-try:
-    crud.seed_defaults(_boot_db)
-finally:
-    _boot_db.close()
-
-
 # ── App ────────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="CMhelper v1", version="1.0.0")
+
+@app.on_event("startup")
+def startup_event():
+    # ── DB bootstrap ───────────────────────────────────────────────────────────────
+    Base.metadata.create_all(bind=engine)
+    run_migrations(engine)
+    
+    # Seed default field definitions once
+    _boot_db = next(get_db())
+    try:
+        crud.seed_defaults(_boot_db)
+    finally:
+        _boot_db.close()
 
 app.add_middleware(
     CORSMiddleware,
@@ -146,14 +147,12 @@ if SUPABASE_URL and SUPABASE_KEY:
 else:
     supabase = None
 
+IS_VERCEL = os.getenv("VERCEL") == "1"
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "uploads")
-try:
+
+if not IS_VERCEL:
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-except OSError:
-    # Vercel (Serverless) 등 Read-only 파일 시스템에서는 로컬 폴더 마운트를 생략합니다.
-    # 이 환경에서는 반드시 Supabase 등 외부 Storage Provider를 사용해야 합니다.
-    pass
 
 @app.post("/api/upload")
 async def api_upload(file: UploadFile = File(...)):
@@ -194,13 +193,15 @@ async def api_upload(file: UploadFile = File(...)):
                 raise e
             raise HTTPException(500, detail=f"Supabase 연동 실패: {str(e)}")
     else:
+        if IS_VERCEL:
+            raise HTTPException(503, detail="Serverless 환경(Vercel)에서는 Supabase 설정이 필수입니다. 로컬 업로드를 지원하지 않습니다.")
         try:
             file_path = os.path.join(UPLOAD_DIR, new_filename)
             with open(file_path, "wb") as buffer:
                 buffer.write(file_bytes)
             return {"url": f"/uploads/{new_filename}"}
         except Exception as e:
-            raise HTTPException(500, detail=f"로컬 업로드 실패 (서버 환경에서는 Supabase 연동이 필수입니다): {str(e)}")
+            raise HTTPException(500, detail=f"로컬 업로드 실패: {str(e)}")
 
 # ── API endpoints ──────────────────────────────────────────────────────────────
 
