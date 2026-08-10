@@ -47,7 +47,7 @@ def get_or_create_default_company(db: Session, name: str, slug: str) -> models.C
 def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
     return db.query(models.User).filter_by(email=email).first()
 
-def create_user(db: Session, data: schemas.UserCreate, company_id: int, role: str) -> models.User:
+def create_user(db: Session, data: schemas.UserCreate, company_id: int, role: str, status: str) -> models.User:
     hashed_password = get_password_hash(data.password)
     user = models.User(
         company_id=company_id,
@@ -55,10 +55,25 @@ def create_user(db: Session, data: schemas.UserCreate, company_id: int, role: st
         password_hash=hashed_password,
         name=data.name,
         role=role,
+        status=status,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+    return user
+
+def get_users_by_company(db: Session, company_id: int) -> List[models.User]:
+    return db.query(models.User).filter(models.User.company_id == company_id).order_by(models.User.created_at.desc()).all()
+
+def get_user_by_id(db: Session, user_id: int) -> Optional[models.User]:
+    return db.query(models.User).filter(models.User.id == user_id).first()
+
+def update_user_status(db: Session, user_id: int, status: str) -> Optional[models.User]:
+    user = get_user_by_id(db, user_id)
+    if user:
+        user.status = status
+        db.commit()
+        db.refresh(user)
     return user
 
 

@@ -139,6 +139,33 @@ def create_access_token(data: dict) -> str:
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        user_id_str = payload.get("sub")
+        if not user_id_str:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+    except InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        
+    user = db.query(models.User).filter_by(id=int(user_id_str)).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+        
+    if user.status != models.UserStatus.ACTIVE.value:
+        raise HTTPException(status_code=403, detail="User is inactive")
+        
+    if user.company.status != models.CompanyStatus.ACTIVE.value:
+        raise HTTPException(status_code=403, detail="Company is inactive")
+        
+    return user
+
+def require_owner(current_user: models.User = Depends(get_current_user)):
+    if current_user.role != models.UserRole.OWNER.value:
+        raise HTTPException(status_code=403, detail="Owner privileges required")
+    return current_user
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY")
 
@@ -232,10 +259,11 @@ def api_register(body: schemas.UserCreate, db: Session = Depends(get_db)):
     company = crud.get_or_create_default_company(db, CMHELPER_DEFAULT_COMPANY_NAME, CMHELPER_DEFAULT_COMPANY_SLUG)
     
     role = models.UserRole.OWNER.value if email == CMHELPER_OWNER_EMAIL else models.UserRole.USER.value
+    status = models.UserStatus.ACTIVE.value if role == models.UserRole.OWNER.value else models.UserStatus.PENDING.value
     
     # Pass clean email to crud
     body.email = email
-    user = crud.create_user(db, body, company.id, role)
+    user = crud.create_user(db, body, company.id, role, status)
     return user
 
 @app.post("/api/auth/login", response_model=schemas.Token)
@@ -246,7 +274,9 @@ def api_login(body: schemas.LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     if user.status != models.UserStatus.ACTIVE.value:
-        raise HTTPException(status_code=403, detail="User is inactive")
+        if user.status == models.UserStatus.PENDING.value:
+            raise HTTPException(status_code=403, detail="관리자 승인 대기 중인 계정입니다.")
+        raise HTTPException(status_code=403, detail="비활성화된 계정입니다.")
         
     if user.company.status != models.CompanyStatus.ACTIVE.value:
         raise HTTPException(status_code=403, detail="Company is inactive")
@@ -260,37 +290,18 @@ def api_login(body: schemas.LoginRequest, db: Session = Depends(get_db)):
     return schemas.Token(access_token=access_token)
 
 @app.get("/api/auth/me", response_model=schemas.UserOut)
-def api_auth_me(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        user_id_str = payload.get("sub")
-        if not user_id_str:
-            raise HTTPException(status_code=401, detail="Invalid token payload")
-    except InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-        
-    user = db.query(models.User).filter_by(id=int(user_id_str)).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-        
-    if user.status != models.UserStatus.ACTIVE.value:
-        raise HTTPException(status_code=403, detail="User is inactive")
-        
-    if user.company.status != models.CompanyStatus.ACTIVE.value:
-        raise HTTPException(status_code=403, detail="Company is inactive")
-        
-    return user
+def api_auth_me(current_user: models.User = Depends(get_current_user)):
+    return current_user
 
 # ── Field definitions ──────────────────────────────────────────────────────────
 
 @app.get("/api/fields", response_model=List[schemas.FieldDefOut])
-def api_list_fields(active_only: bool = False, db: Session = Depends(get_db)):
+def api_list_fields(active_only: bool = False, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.list_fields(db, active_only)
 
 
 @app.post("/api/fields", response_model=schemas.FieldDefOut, status_code=201)
-def api_create_field(body: schemas.FieldDefCreate, db: Session = Depends(get_db)):
+def api_create_field(body: schemas.FieldDefCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_owner)):
     row = crud.create_field(db, body)
     if row is None:
         raise HTTPException(400, detail=f"Field name '{body.name}' already exists.")
@@ -299,7 +310,7 @@ def api_create_field(body: schemas.FieldDefCreate, db: Session = Depends(get_db)
 
 @app.put("/api/fields/{fid}", response_model=schemas.FieldDefOut)
 def api_update_field(fid: str, body: schemas.FieldDefUpdate,
-                     db: Session = Depends(get_db)):
+                     db: Session = Depends(get_db), current_user: models.User = Depends(require_owner)):
     row = crud.update_field(db, fid, body)
     if row is None:
         raise HTTPException(404, detail="Field not found.")
@@ -307,7 +318,7 @@ def api_update_field(fid: str, body: schemas.FieldDefUpdate,
 
 
 @app.delete("/api/fields/{fid}")
-def api_delete_field(fid: str, db: Session = Depends(get_db)):
+def api_delete_field(fid: str, db: Session = Depends(get_db), current_user: models.User = Depends(require_owner)):
     if not crud.delete_field(db, fid):
         raise HTTPException(400,
             detail="Cannot delete: field not found or is a system field.")
@@ -318,12 +329,12 @@ def api_delete_field(fid: str, db: Session = Depends(get_db)):
 
 @app.get("/api/customers", response_model=List[schemas.CustomerOut])
 def api_list_customers(search: str = "", skip: int = 0, limit: int = 500,
-                       db: Session = Depends(get_db)):
+                       db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.list_customers(db, search=search, skip=skip, limit=limit)
 
 
 @app.get("/api/customers/{cid}", response_model=schemas.CustomerOut)
-def api_get_customer(cid: int, db: Session = Depends(get_db)):
+def api_get_customer(cid: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     row = crud.get_customer(db, cid)
     if not row:
         raise HTTPException(404, detail="Customer not found.")
@@ -331,13 +342,13 @@ def api_get_customer(cid: int, db: Session = Depends(get_db)):
 
 
 @app.post("/api/customers", response_model=schemas.CustomerOut, status_code=201)
-def api_create_customer(body: schemas.CustomerCreate, db: Session = Depends(get_db)):
+def api_create_customer(body: schemas.CustomerCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.create_customer(db, body)
 
 
 @app.put("/api/customers/{cid}", response_model=schemas.CustomerOut)
 def api_update_customer(cid: int, body: schemas.CustomerUpdate,
-                        db: Session = Depends(get_db)):
+                        db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     row = crud.update_customer(db, cid, body)
     if not row:
         raise HTTPException(404, detail="Customer not found.")
@@ -345,7 +356,7 @@ def api_update_customer(cid: int, body: schemas.CustomerUpdate,
 
 
 @app.delete("/api/customers/{cid}")
-def api_delete_customer(cid: int, db: Session = Depends(get_db)):
+def api_delete_customer(cid: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if not crud.delete_customer(db, cid):
         raise HTTPException(404, detail="Customer not found.")
     return {"deleted": cid}
@@ -356,7 +367,7 @@ def api_delete_customer(cid: int, db: Session = Depends(get_db)):
 @app.post("/api/customers/{cid}/consultations",
           response_model=schemas.ConsultationOut, status_code=201)
 def api_add_consultation(cid: int, body: schemas.ConsultationCreate,
-                          db: Session = Depends(get_db)):
+                          db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     row = crud.add_consultation(db, cid, body)
     if not row:
         raise HTTPException(404, detail="Customer not found.")
@@ -364,7 +375,7 @@ def api_add_consultation(cid: int, body: schemas.ConsultationCreate,
 
 
 @app.delete("/api/consultations/{log_id}")
-def api_delete_consultation(log_id: int, db: Session = Depends(get_db)):
+def api_delete_consultation(log_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if not crud.delete_consultation(db, log_id):
         raise HTTPException(404, detail="Consultation not found.")
     return {"deleted": log_id}
@@ -373,7 +384,7 @@ def api_delete_consultation(log_id: int, db: Session = Depends(get_db)):
 # ── Excel import ───────────────────────────────────────────────────────────────
 
 @app.post("/api/excel/parse")
-async def api_excel_parse(file: UploadFile = File(...)):
+async def api_excel_parse(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
     _check_ext(file.filename)
     rows = _read_file(await file.read(), file.filename)
     headers = list(rows[0].keys()) if rows else []
@@ -388,6 +399,7 @@ async def api_excel_import(
     file: UploadFile = File(...),
     mapping: str = Form(...),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
 ):
     _check_ext(file.filename)
     try:
@@ -522,7 +534,7 @@ def _read_file(content: bytes, filename: str) -> List[dict]:
 # ── MessageTask Endpoints ─────────────────────────────────────────────────────
 
 @app.post("/api/messages/queue", response_model=List[schemas.MessageTaskOut])
-def api_queue_messages(tasks: List[schemas.MessageTaskCreate], db: Session = Depends(get_db)):
+def api_queue_messages(tasks: List[schemas.MessageTaskCreate], db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     results = []
     try:
         for t in tasks:
@@ -533,20 +545,20 @@ def api_queue_messages(tasks: List[schemas.MessageTaskCreate], db: Session = Dep
         raise HTTPException(500, detail=f"발송 대기열 저장 실패: {str(e)}")
 
 @app.get("/api/messages/pending", response_model=List[schemas.MessageTaskOut])
-def api_get_pending_messages(db: Session = Depends(get_db)):
+def api_get_pending_messages(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.get_pending_message_tasks(db)
 
 @app.get("/api/messages/history", response_model=List[schemas.MessageTaskOut])
-def api_get_message_history(limit: int = 200, db: Session = Depends(get_db)):
+def api_get_message_history(limit: int = 200, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.get_recent_message_tasks(db, limit=limit)
 
 @app.delete("/api/messages/pending")
-def api_cancel_pending_messages(db: Session = Depends(get_db)):
+def api_cancel_pending_messages(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     count = crud.cancel_pending_message_tasks(db)
     return {"detail": f"Canceled {count} tasks."}
 
 @app.put("/api/messages/{task_id}/status", response_model=schemas.MessageTaskOut)
-def api_update_message_status(task_id: int, body: schemas.MessageTaskUpdate, db: Session = Depends(get_db)):
+def api_update_message_status(task_id: int, body: schemas.MessageTaskUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     row = crud.update_message_task_status(db, task_id, body.status)
     if not row:
         raise HTTPException(404, detail="Message task not found")
@@ -559,3 +571,25 @@ def api_update_message_status(task_id: int, body: schemas.MessageTaskUpdate, db:
             print(f"Failed to delete image {filename}: {e}")
             
     return row
+
+# ── User Management Endpoints ──────────────────────────────────────────────────
+
+@app.get("/api/admin/users", response_model=List[schemas.UserOut])
+def api_admin_list_users(db: Session = Depends(get_db), current_user: models.User = Depends(require_owner)):
+    return crud.get_users_by_company(db, current_user.company_id)
+
+@app.patch("/api/admin/users/{user_id}/status", response_model=schemas.UserOut)
+def api_admin_update_user_status(user_id: int, body: schemas.UserStatusUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(require_owner)):
+    if user_id == current_user.id:
+        raise HTTPException(status_code=403, detail="자신의 상태는 변경할 수 없습니다.")
+        
+    target_user = crud.get_user_by_id(db, user_id)
+    if not target_user or target_user.company_id != current_user.company_id:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if body.status not in [models.UserStatus.ACTIVE.value, models.UserStatus.INACTIVE.value, models.UserStatus.PENDING.value]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+        
+    updated = crud.update_user_status(db, user_id, body.status)
+    return updated
+

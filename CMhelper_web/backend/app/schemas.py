@@ -24,6 +24,9 @@ class UserOut(BaseModel):
     updated_at: datetime
     model_config = {"from_attributes": True}
 
+class UserStatusUpdate(BaseModel):
+    status: str
+
 class LoginRequest(BaseModel):
     email: str
     password: str

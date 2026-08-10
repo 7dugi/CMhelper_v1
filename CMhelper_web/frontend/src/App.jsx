@@ -10,6 +10,7 @@ import './index.css';
 import * as api from './api';
 import MessageSender from './MessageSender';
 import AuthScreen from './auth/AuthScreen';
+import UserManagement from './UserManagement';
 
 /* ─── constants ─────────────────────────────────────────────────────── */
 const SYSTEM_KEYS = new Set([
@@ -1198,8 +1199,11 @@ export default function App() {
     { id:'dashboard', label:'고객 대시보드', icon:<Users size={18}/> },
     { id:'excel',     label:'엑셀 업로드',   icon:<FileSpreadsheet size={18}/> },
     { id:'message',   label:'메시지 발송',   icon:<MessageSquare size={18}/> },
-    { id:'settings',  label:'항목 설정',      icon:<Settings size={18}/> },
   ];
+  if (user?.role === 'OWNER') {
+    TABS.push({ id:'settings',  label:'항목 설정',      icon:<Settings size={18}/> });
+    TABS.push({ id:'users',     label:'사용자 관리',    icon:<Shield size={18}/> });
+  }
 
   return (
     <div className="layout">
@@ -1240,7 +1244,8 @@ export default function App() {
         {tab === 'dashboard' && <Dashboard activeFields={active} />}
         {tab === 'excel'     && <ExcelImport activeFields={active} />}
         {tab === 'message'   && <MessageSender />}
-        {tab === 'settings'  && <FieldSettings fields={fields} onRefresh={loadFields} />}
+        {tab === 'settings'  && user?.role === 'OWNER' && <FieldSettings fields={fields} onRefresh={loadFields} />}
+        {tab === 'users'     && user?.role === 'OWNER' && <UserManagement />}
       </main>
     </div>
   );

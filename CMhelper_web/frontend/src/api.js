@@ -2,7 +2,7 @@ export const BASE_URL = import.meta.env.PROD ? "" : `http://${window.location.ho
 const API = `${BASE_URL}/api`;
 async function req(path, opts = {}) {
   // 인증이 필요한 엔드포인트에만 토큰 추가
-  if (path.startsWith('/auth/me')) {
+  if (!path.startsWith('/auth/register') && !path.startsWith('/auth/login')) {
     const token = sessionStorage.getItem('cmhelper_token');
     if (token) {
       opts.headers = { ...opts.headers, 'Authorization': `Bearer ${token}` };
@@ -21,6 +21,10 @@ async function req(path, opts = {}) {
 export const registerUser = (body) => req('/auth/register', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
 export const loginUser    = (body) => req('/auth/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
 export const getAuthMe    = ()     => req('/auth/me');
+
+// User Management
+export const getUsers         = () => req('/admin/users');
+export const updateUserStatus = (userId, status) => req(`/admin/users/${userId}/status`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status }) });
 
 // Fields
 export const getFields = (activeOnly = false) =>

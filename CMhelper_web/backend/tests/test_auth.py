@@ -75,13 +75,19 @@ def test_register_invalid_invite_code():
     assert res.status_code == 403
 
 def test_login_success():
-    client.post("/api/auth/register", json={
+    res_reg = client.post("/api/auth/register", json={
         "name": "Test User",
         "email": "login@test.com",
         "password": "password123",
         "password_confirm": "password123",
         "invite_code": "TEST-INVITE"
     })
+    user_id = res_reg.json()["id"]
+    db = next(override_get_db())
+    from app.models import User
+    db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+    db.commit()
+
     res = client.post("/api/auth/login", json={
         "email": "LOGIN@test.com", # Test lowercase normalization
         "password": "password123"
@@ -107,13 +113,19 @@ def test_login_invalid_password():
     assert "Invalid credentials" in res.json()["detail"]
 
 def test_auth_me():
-    client.post("/api/auth/register", json={
+    res_reg = client.post("/api/auth/register", json={
         "name": "Test User",
         "email": "me@test.com",
         "password": "password123",
         "password_confirm": "password123",
         "invite_code": "TEST-INVITE"
     })
+    user_id = res_reg.json()["id"]
+    db = next(override_get_db())
+    from app.models import User
+    db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+    db.commit()
+
     login_res = client.post("/api/auth/login", json={
         "email": "me@test.com",
         "password": "password123"
@@ -220,6 +232,11 @@ def test_auth_me_inactive_user():
     })
     user_id = res_reg.json()["id"]
     
+    db = next(override_get_db())
+    from app.models import User
+    db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+    db.commit()
+
     # login to get token
     res_login = client.post("/api/auth/login", json={
         "email": "inactive@test.com",
@@ -248,6 +265,11 @@ def test_auth_me_inactive_company():
     })
     user_id = res_reg.json()["id"]
     
+    db = next(override_get_db())
+    from app.models import User
+    db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+    db.commit()
+
     res_login = client.post("/api/auth/login", json={
         "email": "inactive_co@test.com",
         "password": "password123"
@@ -331,6 +353,12 @@ def test_jwt_expiry_120_minutes():
         "password_confirm": "password123",
         "invite_code": "TEST-INVITE"
     })
+    user_id = res_reg.json()["id"]
+    db = next(override_get_db())
+    from app.models import User
+    db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+    db.commit()
+
     res_login = client.post("/api/auth/login", json={
         "email": "jwt@test.com",
         "password": "password123"
@@ -343,3 +371,64 @@ def test_jwt_expiry_120_minutes():
     
     # The difference between exp and iat should be exactly 120 minutes
     assert payload["exp"] - payload["iat"] == 120 * 60
+
+def test_rbac_owner_vs_user():
+    # Register OWNER
+    res_owner = client.post("/api/auth/register", json={
+        "name": "Owner",
+        "email": "owner@test.com",  # matches CMHELPER_OWNER_EMAIL
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    assert res_owner.status_code == 201
+    assert res_owner.json()["role"] == "OWNER"
+    assert res_owner.json()["status"] == "ACTIVE"
+    owner_id = res_owner.json()["id"]
+
+    # Login OWNER
+    token_owner = client.post("/api/auth/login", json={
+        "email": "owner@test.com",
+        "password": "password123"
+    }).json()["access_token"]
+
+    # Register USER
+    res_user = client.post("/api/auth/register", json={
+        "name": "User",
+        "email": "user_rbac@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    assert res_user.status_code == 201
+    assert res_user.json()["role"] == "USER"
+    assert res_user.json()["status"] == "PENDING"
+    user_id = res_user.json()["id"]
+
+    # USER Login fails (PENDING)
+    res_login_user = client.post("/api/auth/login", json={
+        "email": "user_rbac@test.com",
+        "password": "password123"
+    })
+    assert res_login_user.status_code == 403
+    assert "대기 중" in res_login_user.json()["detail"]
+
+    # OWNER approves USER
+    res_approve = client.patch(f"/api/admin/users/{user_id}/status", json={"status": "ACTIVE"}, headers={"Authorization": f"Bearer {token_owner}"})
+    assert res_approve.status_code == 200
+    assert res_approve.json()["status"] == "ACTIVE"
+
+    # USER Login succeeds
+    token_user = client.post("/api/auth/login", json={
+        "email": "user_rbac@test.com",
+        "password": "password123"
+    }).json()["access_token"]
+
+    # USER cannot access admin users endpoint
+    res_admin_user = client.get("/api/admin/users", headers={"Authorization": f"Bearer {token_user}"})
+    assert res_admin_user.status_code == 403
+
+    # OWNER cannot deactivate self
+    res_deactivate_self = client.patch(f"/api/admin/users/{owner_id}/status", json={"status": "INACTIVE"}, headers={"Authorization": f"Bearer {token_owner}"})
+    assert res_deactivate_self.status_code == 403
+

@@ -15,6 +15,7 @@ class UserRole(str, enum.Enum):
     USER = "USER"
 
 class UserStatus(str, enum.Enum):
+    PENDING = "PENDING"
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
 

@@ -16,11 +16,17 @@ export default function AuthScreen({ onLoginSuccess }) {
 
   const handleRegister = async (data) => {
     // Register user
-    await registerUser(data);
-    // Auto login after successful register
-    const res = await loginUser({ email: data.email, password: data.password });
-    sessionStorage.setItem('cmhelper_token', res.access_token);
-    await onLoginSuccess();
+    const userRes = await registerUser(data);
+    
+    if (userRes.status === 'PENDING') {
+      alert("회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.");
+      setView('login');
+    } else {
+      // Auto login after successful register (e.g. for OWNER)
+      const res = await loginUser({ email: data.email, password: data.password });
+      sessionStorage.setItem('cmhelper_token', res.access_token);
+      await onLoginSuccess();
+    }
   };
 
   return (
