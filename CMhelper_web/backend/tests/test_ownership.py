@@ -192,3 +192,46 @@ def test_customer_workspace_segmentation(setup_test_users):
     res = client.get(f"/api/customers?assigned_user_id={users['owner'].id}", headers={"Authorization": f"Bearer {token_a}"})
     assert res.status_code == 403
 
+
+def test_assigned_user_name_exposure(setup_test_users):
+    users = setup_test_users
+    token_owner = get_token("owner@test.com")
+    token_a = get_token("usera@test.com")
+    
+    # A. OWNER 본인 고객 조회 시 assigned_user_name == OWNER.name
+    res = client.get("/api/customers", headers={"Authorization": f"Bearer {token_owner}"})
+    assert res.status_code == 200
+    for c in res.json():
+        if c["name"].startswith("Owner Cust"):
+            assert c["assigned_user_name"] == users["owner"].name
+
+    # B. OWNER가 특정 USER workspace 조회 시 assigned_user_name == USER.name
+    res = client.get(f"/api/customers?assigned_user_id={users['user_a'].id}", headers={"Authorization": f"Bearer {token_owner}"})
+    assert res.status_code == 200
+    assert len(res.json()) > 0
+    for c in res.json():
+        assert c["assigned_user_name"] == users["user_a"].name
+
+    # C. OWNER scope=all 조회 시 각 Customer의 담당자 매칭 검증
+    res = client.get("/api/customers?scope=all", headers={"Authorization": f"Bearer {token_owner}"})
+    assert res.status_code == 200
+    for c in res.json():
+        if c["assigned_user_id"] == users["owner"].id:
+            assert c["assigned_user_name"] == users["owner"].name
+        elif c["assigned_user_id"] == users["user_a"].id:
+            assert c["assigned_user_name"] == users["user_a"].name
+
+    # D. USER가 자신의 고객 조회 시 정상 작동
+    res = client.get("/api/customers", headers={"Authorization": f"Bearer {token_a}"})
+    assert res.status_code == 200
+    for c in res.json():
+        assert c["assigned_user_name"] == users["user_a"].name
+
+    # E. USER가 다른 USER workspace 강제 조회 차단
+    res = client.get(f"/api/customers?assigned_user_id={users['user_b'].id}", headers={"Authorization": f"Bearer {token_a}"})
+    assert res.status_code == 403
+
+    # F. 다른 Company 정보 노출 차단 (Tenant Isolation)
+    res = client.get("/api/customers?assigned_user_id=9999", headers={"Authorization": f"Bearer {token_owner}"})
+    assert res.status_code == 403
+

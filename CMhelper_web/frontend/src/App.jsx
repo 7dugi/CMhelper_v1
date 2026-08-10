@@ -653,6 +653,7 @@ function Dashboard({ activeFields, user }) {
                       </th>
                     );
                   })}
+                  {user?.role === 'OWNER' && <th>담당자</th>}
                   <th style={{ textAlign:'center' }}>관리</th>
                 </tr>
               </thead>
@@ -684,6 +685,7 @@ function Dashboard({ activeFields, user }) {
                       if (f.name === 'contract_months' && v) return <td key={f.id}>{v}개월</td>;
                       return <td key={f.id} title={v ?? ''}>{v != null ? String(v) : '—'}</td>;
                     })}
+                    {user?.role === 'OWNER' && <td>{c.assigned_user_name || '—'}</td>}
                     <td onClick={e => e.stopPropagation()} style={{ textAlign:'center' }}>
                       <div style={{ display:'flex', gap:'.4rem', justifyContent:'center' }}>
                         <button className="btn btn-ghost btn-sm" onClick={e => openEdit(c, e)}>수정</button>

@@ -152,6 +152,7 @@ class CustomerOut(CustomerBase):
     id:               int
     company_id:       int
     assigned_user_id: int
+    assigned_user_name: Optional[str] = None
     created_at:       datetime
     updated_at:       datetime
     consultations: List[ConsultationOut] = []

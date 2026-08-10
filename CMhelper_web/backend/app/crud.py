@@ -6,7 +6,7 @@ import datetime
 import uuid
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
@@ -226,7 +226,7 @@ def delete_field(db: Session, fid: str) -> bool:
 
 def list_customers(db: Session, company_id: int, assigned_user_id: Optional[int] = None,
                    search: str = "", skip: int = 0, limit: int = 500) -> List[models.Customer]:
-    q = db.query(models.Customer).filter(models.Customer.company_id == company_id)
+    q = db.query(models.Customer).options(joinedload(models.Customer.assigned_user)).filter(models.Customer.company_id == company_id)
     if assigned_user_id is not None:
         q = q.filter(models.Customer.assigned_user_id == assigned_user_id)
     if search:
@@ -243,7 +243,7 @@ def list_customers(db: Session, company_id: int, assigned_user_id: Optional[int]
 
 
 def get_customer(db: Session, cid: int) -> Optional[models.Customer]:
-    return db.query(models.Customer).filter_by(id=cid).first()
+    return db.query(models.Customer).options(joinedload(models.Customer.assigned_user)).filter_by(id=cid).first()
 
 
 def create_customer(db: Session, data: schemas.CustomerCreate, company_id: int, assigned_user_id: int) -> models.Customer:
