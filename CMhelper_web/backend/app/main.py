@@ -327,38 +327,47 @@ def api_delete_field(fid: str, db: Session = Depends(get_db), current_user: mode
 
 # ── Customers ──────────────────────────────────────────────────────────────────
 
+def _check_customer_ownership(customer: models.Customer, current_user: models.User):
+    if not customer:
+        raise HTTPException(404, detail="Customer not found.")
+    if customer.company_id != current_user.company_id:
+        raise HTTPException(404, detail="Customer not found.")
+    if current_user.role == models.UserRole.USER.value and customer.assigned_user_id != current_user.id:
+        raise HTTPException(404, detail="Customer not found.")
+
 @app.get("/api/customers", response_model=List[schemas.CustomerOut])
 def api_list_customers(search: str = "", skip: int = 0, limit: int = 500,
                        db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    return crud.list_customers(db, search=search, skip=skip, limit=limit)
+    assigned_user_id = current_user.id if current_user.role == models.UserRole.USER.value else None
+    return crud.list_customers(db, company_id=current_user.company_id, assigned_user_id=assigned_user_id, search=search, skip=skip, limit=limit)
 
 
 @app.get("/api/customers/{cid}", response_model=schemas.CustomerOut)
 def api_get_customer(cid: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     row = crud.get_customer(db, cid)
-    if not row:
-        raise HTTPException(404, detail="Customer not found.")
+    _check_customer_ownership(row, current_user)
     return row
 
 
 @app.post("/api/customers", response_model=schemas.CustomerOut, status_code=201)
 def api_create_customer(body: schemas.CustomerCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    return crud.create_customer(db, body)
+    return crud.create_customer(db, body, company_id=current_user.company_id, assigned_user_id=current_user.id)
 
 
 @app.put("/api/customers/{cid}", response_model=schemas.CustomerOut)
 def api_update_customer(cid: int, body: schemas.CustomerUpdate,
                         db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    row = crud.update_customer(db, cid, body)
-    if not row:
-        raise HTTPException(404, detail="Customer not found.")
-    return row
+    row = crud.get_customer(db, cid)
+    _check_customer_ownership(row, current_user)
+    updated_row = crud.update_customer(db, cid, body)
+    return updated_row
 
 
 @app.delete("/api/customers/{cid}")
 def api_delete_customer(cid: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if not crud.delete_customer(db, cid):
-        raise HTTPException(404, detail="Customer not found.")
+    row = crud.get_customer(db, cid)
+    _check_customer_ownership(row, current_user)
+    crud.delete_customer(db, cid)
     return {"deleted": cid}
 
 
@@ -368,6 +377,8 @@ def api_delete_customer(cid: int, db: Session = Depends(get_db), current_user: m
           response_model=schemas.ConsultationOut, status_code=201)
 def api_add_consultation(cid: int, body: schemas.ConsultationCreate,
                           db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    customer = crud.get_customer(db, cid)
+    _check_customer_ownership(customer, current_user)
     row = crud.add_consultation(db, cid, body)
     if not row:
         raise HTTPException(404, detail="Customer not found.")
@@ -376,8 +387,12 @@ def api_add_consultation(cid: int, body: schemas.ConsultationCreate,
 
 @app.delete("/api/consultations/{log_id}")
 def api_delete_consultation(log_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if not crud.delete_consultation(db, log_id):
+    consultation = crud.get_consultation(db, log_id)
+    if not consultation:
         raise HTTPException(404, detail="Consultation not found.")
+    customer = crud.get_customer(db, consultation.customer_id)
+    _check_customer_ownership(customer, current_user)
+    crud.delete_consultation(db, log_id)
     return {"deleted": log_id}
 
 
@@ -463,25 +478,30 @@ async def api_excel_import(
                 errors.append(f"Row {row_num}: '이름' missing — skipped.")
                 continue
 
-            crud.create_customer(db, schemas.CustomerCreate(
-                name=sys_data.get("name", ""),
-                contact=sys_data.get("contact"),
-                region=sys_data.get("region"),
-                company=sys_data.get("company"),
-                contract_car=sys_data.get("contract_car"),
-                contract_date=sys_data.get("contract_date"),
-                contract_months=sys_data.get("contract_months"),
-                capital=sys_data.get("capital"),
-                product_type=sys_data.get("product_type"),
-                supplies_work=sys_data.get("supplies_work"),
-                insurance_active=sys_data.get("insurance_active", False) or False,
-                dealer_info=sys_data.get("dealer_info"),
-                is_prospect=sys_data.get("is_prospect", False) or False,
-                is_contracted=sys_data.get("is_contracted", False) or False,
-                anniversary=sys_data.get("anniversary"),
-                memo=sys_data.get("memo"),
-                extra=extra_data,
-            ))
+            crud.create_customer(
+                db, 
+                schemas.CustomerCreate(
+                    name=sys_data.get("name", ""),
+                    contact=sys_data.get("contact"),
+                    region=sys_data.get("region"),
+                    company=sys_data.get("company"),
+                    contract_car=sys_data.get("contract_car"),
+                    contract_date=sys_data.get("contract_date"),
+                    contract_months=sys_data.get("contract_months"),
+                    capital=sys_data.get("capital"),
+                    product_type=sys_data.get("product_type"),
+                    supplies_work=sys_data.get("supplies_work"),
+                    insurance_active=sys_data.get("insurance_active", False) or False,
+                    dealer_info=sys_data.get("dealer_info"),
+                    is_prospect=sys_data.get("is_prospect", False) or False,
+                    is_contracted=sys_data.get("is_contracted", False) or False,
+                    anniversary=sys_data.get("anniversary"),
+                    memo=sys_data.get("memo"),
+                    extra=extra_data,
+                ),
+                company_id=current_user.company_id,
+                assigned_user_id=current_user.id
+            )
             success += 1
         except Exception as e:
             errors.append(f"Row {row_num}: {e}")
@@ -538,27 +558,40 @@ def api_queue_messages(tasks: List[schemas.MessageTaskCreate], db: Session = Dep
     results = []
     try:
         for t in tasks:
+            customer = crud.get_customer(db, t.customer_id)
+            _check_customer_ownership(customer, current_user)
             row = crud.create_message_task(db, t)
             results.append(row)
         return results
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, detail=f"발송 대기열 저장 실패: {str(e)}")
 
 @app.get("/api/messages/pending", response_model=List[schemas.MessageTaskOut])
 def api_get_pending_messages(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    return crud.get_pending_message_tasks(db)
+    assigned_user_id = current_user.id if current_user.role == models.UserRole.USER.value else None
+    return crud.get_pending_message_tasks(db, company_id=current_user.company_id, assigned_user_id=assigned_user_id)
 
 @app.get("/api/messages/history", response_model=List[schemas.MessageTaskOut])
 def api_get_message_history(limit: int = 200, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    return crud.get_recent_message_tasks(db, limit=limit)
+    assigned_user_id = current_user.id if current_user.role == models.UserRole.USER.value else None
+    return crud.get_recent_message_tasks(db, company_id=current_user.company_id, assigned_user_id=assigned_user_id, limit=limit)
 
 @app.delete("/api/messages/pending")
 def api_cancel_pending_messages(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    count = crud.cancel_pending_message_tasks(db)
+    assigned_user_id = current_user.id if current_user.role == models.UserRole.USER.value else None
+    count = crud.cancel_pending_message_tasks(db, company_id=current_user.company_id, assigned_user_id=assigned_user_id)
     return {"detail": f"Canceled {count} tasks."}
 
 @app.put("/api/messages/{task_id}/status", response_model=schemas.MessageTaskOut)
 def api_update_message_status(task_id: int, body: schemas.MessageTaskUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    task = crud.get_message_task(db, task_id)
+    if not task:
+        raise HTTPException(404, detail="Message task not found")
+    customer = crud.get_customer(db, task.customer_id)
+    _check_customer_ownership(customer, current_user)
+
     row = crud.update_message_task_status(db, task_id, body.status)
     if not row:
         raise HTTPException(404, detail="Message task not found")

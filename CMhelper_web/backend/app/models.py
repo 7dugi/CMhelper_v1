@@ -66,6 +66,8 @@ class Customer(Base):
     __tablename__ = "customers"
 
     id               = Column(Integer, primary_key=True, autoincrement=True)
+    company_id       = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    assigned_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     # ── System fixed columns ───────────────────────────────────────────────
     name             = Column(String, index=True)
     contact          = Column(String, nullable=True)
@@ -97,6 +99,9 @@ class Customer(Base):
     consultations = relationship("Consultation", back_populates="customer",
                                  cascade="all, delete-orphan",
                                  order_by="Consultation.id.desc()")
+    
+    tenant = relationship("Company")
+    assigned_user = relationship("User")
 
 
 class Consultation(Base):

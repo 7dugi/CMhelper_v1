@@ -149,9 +149,11 @@ class CustomerUpdate(BaseModel):
     extra:            Optional[Dict[str, Any]] = None
 
 class CustomerOut(CustomerBase):
-    id:            int
-    created_at:    datetime
-    updated_at:    datetime
+    id:               int
+    company_id:       int
+    assigned_user_id: int
+    created_at:       datetime
+    updated_at:       datetime
     consultations: List[ConsultationOut] = []
     model_config = {"from_attributes": True}
 

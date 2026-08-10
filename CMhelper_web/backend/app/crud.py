@@ -224,9 +224,11 @@ def delete_field(db: Session, fid: str) -> bool:
 
 # ── Customers ──────────────────────────────────────────────────────────────────
 
-def list_customers(db: Session, search: str = "",
-                   skip: int = 0, limit: int = 500) -> List[models.Customer]:
-    q = db.query(models.Customer)
+def list_customers(db: Session, company_id: int, assigned_user_id: Optional[int] = None,
+                   search: str = "", skip: int = 0, limit: int = 500) -> List[models.Customer]:
+    q = db.query(models.Customer).filter(models.Customer.company_id == company_id)
+    if assigned_user_id is not None:
+        q = q.filter(models.Customer.assigned_user_id == assigned_user_id)
     if search:
         like = f"%{search}%"
         q = q.filter(or_(
@@ -244,9 +246,11 @@ def get_customer(db: Session, cid: int) -> Optional[models.Customer]:
     return db.query(models.Customer).filter_by(id=cid).first()
 
 
-def create_customer(db: Session, data: schemas.CustomerCreate) -> models.Customer:
+def create_customer(db: Session, data: schemas.CustomerCreate, company_id: int, assigned_user_id: int) -> models.Customer:
     expiry = _compute_expiry(data.contract_date, data.contract_months)
     row = models.Customer(
+        company_id=company_id,
+        assigned_user_id=assigned_user_id,
         name=data.name,
         contact=data.contact,
         region=data.region,
@@ -323,6 +327,9 @@ def add_consultation(db: Session, cid: int,
     return row
 
 
+def get_consultation(db: Session, log_id: int) -> Optional[models.Consultation]:
+    return db.query(models.Consultation).filter_by(id=log_id).first()
+
 def delete_consultation(db: Session, log_id: int) -> bool:
     row = db.query(models.Consultation).filter_by(id=log_id).first()
     if not row:
@@ -350,19 +357,29 @@ def _format_message_tasks(tasks: List[models.MessageTask]) -> List[schemas.Messa
         results.append(out)
     return results
 
-def get_pending_message_tasks(db: Session) -> List[schemas.MessageTaskOut]:
+def get_pending_message_tasks(db: Session, company_id: int, assigned_user_id: Optional[int] = None) -> List[schemas.MessageTaskOut]:
     now = datetime.datetime.utcnow()
-    tasks = db.query(models.MessageTask).filter(
+    q = db.query(models.MessageTask).join(models.Customer).filter(
+        models.Customer.company_id == company_id,
         models.MessageTask.status == "pending",
         or_(
             models.MessageTask.scheduled_at == None,
             models.MessageTask.scheduled_at <= now
         )
-    ).order_by(models.MessageTask.created_at.asc()).all()
+    )
+    if assigned_user_id is not None:
+        q = q.filter(models.Customer.assigned_user_id == assigned_user_id)
+    tasks = q.order_by(models.MessageTask.created_at.asc()).all()
     return _format_message_tasks(tasks)
 
-def cancel_pending_message_tasks(db: Session) -> int:
-    tasks = db.query(models.MessageTask).filter_by(status="pending").all()
+def cancel_pending_message_tasks(db: Session, company_id: int, assigned_user_id: Optional[int] = None) -> int:
+    q = db.query(models.MessageTask).join(models.Customer).filter(
+        models.Customer.company_id == company_id,
+        models.MessageTask.status == "pending"
+    )
+    if assigned_user_id is not None:
+        q = q.filter(models.Customer.assigned_user_id == assigned_user_id)
+    tasks = q.all()
     count = 0
     for t in tasks:
         t.status = "failed"
@@ -371,9 +388,17 @@ def cancel_pending_message_tasks(db: Session) -> int:
     db.commit()
     return count
 
-def get_recent_message_tasks(db: Session, limit: int = 200) -> List[schemas.MessageTaskOut]:
-    tasks = db.query(models.MessageTask).order_by(models.MessageTask.created_at.desc()).limit(limit).all()
+def get_recent_message_tasks(db: Session, company_id: int, assigned_user_id: Optional[int] = None, limit: int = 200) -> List[schemas.MessageTaskOut]:
+    q = db.query(models.MessageTask).join(models.Customer).filter(
+        models.Customer.company_id == company_id
+    )
+    if assigned_user_id is not None:
+        q = q.filter(models.Customer.assigned_user_id == assigned_user_id)
+    tasks = q.order_by(models.MessageTask.created_at.desc()).limit(limit).all()
     return _format_message_tasks(tasks)
+
+def get_message_task(db: Session, task_id: int) -> Optional[models.MessageTask]:
+    return db.query(models.MessageTask).filter_by(id=task_id).first()
 
 def update_message_task_status(db: Session, task_id: int, status: str) -> Optional[models.MessageTask]:
     row = db.query(models.MessageTask).filter_by(id=task_id).first()
