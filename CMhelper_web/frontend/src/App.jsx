@@ -346,7 +346,7 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
 }
 
 /* ─── Dashboard ──────────────────────────────────────────────────────── */
-function Dashboard({ activeFields }) {
+function Dashboard({ activeFields, user }) {
   const [customers, setCustomers] = useState([]);
   const [search, setSearch]       = useState('');
   const [filter, setFilter]       = useState('all');
@@ -355,13 +355,28 @@ function Dashboard({ activeFields }) {
   const [modalMode, setModalMode] = useState(null);
   const [noteText, setNoteText]   = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'id', dir: 'desc' });
+  
+  const [workspaceFilter, setWorkspaceFilter] = useState('me');
+  const [adminUsers, setAdminUsers] = useState([]);
+
+  useEffect(() => {
+    if (user?.role === 'OWNER') {
+      api.getUsers().then(users => {
+        setAdminUsers(users.filter(u => u.status === 'ACTIVE' && u.id !== user.id));
+      }).catch(() => {});
+    }
+  }, [user]);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setCustomers(await api.getCustomers('')); }
+    let filterParams = '';
+    if (workspaceFilter === 'all') filterParams = 'scope=all';
+    else if (workspaceFilter !== 'me') filterParams = `assigned_user_id=${workspaceFilter}`;
+
+    try { setCustomers(await api.getCustomers('', filterParams)); }
     catch { /* backend not ready */ }
     finally { setLoading(false); }
-  }, []);
+  }, [workspaceFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -544,7 +559,24 @@ function Dashboard({ activeFields }) {
           <h1>고객 데이터베이스</h1>
           <p>고객 정보를 등록하고 실시간 상담 내역을 기록합니다.</p>
         </div>
-        <div style={{ display:'flex', gap:'0.5rem' }}>
+        <div style={{ display:'flex', gap:'0.5rem', alignItems: 'center' }}>
+          {user?.role === 'OWNER' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '1rem' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-2)', fontWeight: 500 }}>담당자:</label>
+              <select 
+                className="input" 
+                style={{ padding: '0.3rem 1.5rem 0.3rem 0.5rem', fontSize: '0.9rem', width: 'auto', minHeight: '32px' }}
+                value={workspaceFilter}
+                onChange={e => setWorkspaceFilter(e.target.value)}
+              >
+                <option value="me">내 고객</option>
+                {adminUsers.map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+                <option value="all">전체 고객</option>
+              </select>
+            </div>
+          )}
           <button className="btn btn-primary" onClick={() => setModalMode('create_contracted')}><Plus size={16}/> 기고객 등록</button>
           <button className="btn btn-secondary" onClick={() => setModalMode('create_prospect')}><Plus size={16}/> 상담고객 등록</button>
         </div>
@@ -1241,7 +1273,7 @@ export default function App() {
       </aside>
 
       <main className="main">
-        {tab === 'dashboard' && <Dashboard activeFields={active} />}
+        {tab === 'dashboard' && <Dashboard activeFields={active} user={user} />}
         {tab === 'excel'     && <ExcelImport activeFields={active} />}
         {tab === 'message'   && <MessageSender />}
         {tab === 'settings'  && user?.role === 'OWNER' && <FieldSettings fields={fields} onRefresh={loadFields} />}

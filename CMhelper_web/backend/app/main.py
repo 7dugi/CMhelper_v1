@@ -5,7 +5,7 @@ import io
 import json
 import csv
 import openpyxl
-from typing import List
+from typing import List, Optional
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -337,9 +337,27 @@ def _check_customer_ownership(customer: models.Customer, current_user: models.Us
 
 @app.get("/api/customers", response_model=List[schemas.CustomerOut])
 def api_list_customers(search: str = "", skip: int = 0, limit: int = 500,
+                       assigned_user_id: Optional[int] = None, scope: Optional[str] = None,
                        db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    assigned_user_id = current_user.id if current_user.role == models.UserRole.USER.value else None
-    return crud.list_customers(db, company_id=current_user.company_id, assigned_user_id=assigned_user_id, search=search, skip=skip, limit=limit)
+    
+    if current_user.role == models.UserRole.USER.value:
+        if scope == "all" or (assigned_user_id is not None and assigned_user_id != current_user.id):
+            raise HTTPException(status_code=403, detail="Not authorized to view other users' customers")
+        effective_user_id = current_user.id
+    else:
+        # OWNER logic
+        if scope == "all":
+            effective_user_id = None
+        elif assigned_user_id is not None:
+            target_user = crud.get_user_by_id(db, assigned_user_id)
+            if not target_user or target_user.company_id != current_user.company_id:
+                raise HTTPException(status_code=403, detail="Not authorized to view customers of this user")
+            effective_user_id = assigned_user_id
+        else:
+            # Default for OWNER is their own customers
+            effective_user_id = current_user.id
+
+    return crud.list_customers(db, company_id=current_user.company_id, assigned_user_id=effective_user_id, search=search, skip=skip, limit=limit)
 
 
 @app.get("/api/customers/{cid}", response_model=schemas.CustomerOut)

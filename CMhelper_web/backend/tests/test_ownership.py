@@ -101,8 +101,8 @@ def test_ownership_isolation(setup_test_users):
     res_del_b_by_a = client.delete(f"/api/customers/{cust_b_id}", headers={"Authorization": f"Bearer {token_a}"})
     assert res_del_b_by_a.status_code == 404
 
-    # 7. Owner lists customers - should see both
-    res_list_owner = client.get("/api/customers", headers={"Authorization": f"Bearer {token_owner}"})
+    # 7. Owner lists customers - should see both with scope=all
+    res_list_owner = client.get("/api/customers?scope=all", headers={"Authorization": f"Bearer {token_owner}"})
     assert res_list_owner.status_code == 200
     names_owner = [c["name"] for c in res_list_owner.json()]
     assert "Customer A" in names_owner
@@ -133,3 +133,62 @@ def test_ownership_isolation(setup_test_users):
         headers={"Authorization": f"Bearer {token_a}"}
     )
     assert res_msg_a.status_code == 404
+
+def test_customer_workspace_segmentation(setup_test_users):
+    users = setup_test_users
+    
+    token_owner = get_token("owner@test.com")
+    token_a = get_token("usera@test.com")
+    token_b = get_token("userb@test.com")
+
+    # Clear all customers for clean test
+    db_session = TestingSessionLocal()
+    db_session.query(models.Customer).delete()
+    db_session.commit()
+    db_session.close()
+
+    # Create customers
+    res = client.post("/api/customers", json={"name": "Owner Cust 1"}, headers={"Authorization": f"Bearer {token_owner}"})
+    assert res.status_code == 201
+    res = client.post("/api/customers", json={"name": "Owner Cust 2"}, headers={"Authorization": f"Bearer {token_owner}"})
+    assert res.status_code == 201
+    res = client.post("/api/customers", json={"name": "User A Cust 1"}, headers={"Authorization": f"Bearer {token_a}"})
+    assert res.status_code == 201
+
+    user_a_id = users["user_a"].id
+    
+    # OWNER default GET -> own only
+    res = client.get("/api/customers", headers={"Authorization": f"Bearer {token_owner}"})
+    assert res.status_code == 200
+    assert len(res.json()) == 2
+    assert all(c["assigned_user_id"] == users["owner"].id for c in res.json())
+
+    # OWNER scope=all -> company all
+    res = client.get("/api/customers?scope=all", headers={"Authorization": f"Bearer {token_owner}"})
+    assert res.status_code == 200
+    assert len(res.json()) == 3
+
+    # OWNER assigned_user_id=USER_A -> USER_A only
+    res = client.get(f"/api/customers?assigned_user_id={user_a_id}", headers={"Authorization": f"Bearer {token_owner}"})
+    assert res.status_code == 200
+    assert len(res.json()) == 1
+    assert res.json()[0]["name"] == "User A Cust 1"
+
+    # OWNER assigned_user_id=OTHER_COMPANY -> 403 Forbidden
+    res = client.get("/api/customers?assigned_user_id=9999", headers={"Authorization": f"Bearer {token_owner}"})
+    assert res.status_code == 403
+
+    # USER default -> own only
+    res = client.get("/api/customers", headers={"Authorization": f"Bearer {token_a}"})
+    assert res.status_code == 200
+    assert len(res.json()) == 1
+    assert res.json()[0]["name"] == "User A Cust 1"
+
+    # USER scope=all -> 403 차단
+    res = client.get("/api/customers?scope=all", headers={"Authorization": f"Bearer {token_a}"})
+    assert res.status_code == 403
+
+    # USER assigned_user_id=OWNER -> 403 차단
+    res = client.get(f"/api/customers?assigned_user_id={users['owner'].id}", headers={"Authorization": f"Bearer {token_a}"})
+    assert res.status_code == 403
+

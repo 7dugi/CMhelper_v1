@@ -34,7 +34,7 @@ export const updateField  = (id, body)    => req(`/fields/${id}`, { method:'PUT'
 export const deleteField  = (id)          => req(`/fields/${id}`, { method:'DELETE' });
 
 // Customers
-export const getCustomers  = (search = '') => req(`/customers?search=${encodeURIComponent(search)}`);
+export const getCustomers  = (search = '', filterParams = '') => req(`/customers?search=${encodeURIComponent(search)}${filterParams ? '&' + filterParams : ''}`);
 export const getCustomer   = (id)           => req(`/customers/${id}`);
 export const createCustomer= (body)         => req('/customers', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
 export const updateCustomer= (id, body)     => req(`/customers/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
