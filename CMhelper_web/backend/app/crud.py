@@ -408,3 +408,58 @@ def update_message_task_status(db: Session, task_id: int, status: str) -> Option
     db.commit()
     db.refresh(row)
     return row
+
+# ── Contracts ─────────────────────────────────────────────────────────────────
+
+def list_contracts(db: Session, company_id: int, customer_id: Optional[int] = None,
+                   assigned_user_id: Optional[int] = None, skip: int = 0, limit: int = 500) -> List[models.Contract]:
+    q = db.query(models.Contract).filter(models.Contract.company_id == company_id)
+    if customer_id is not None:
+        q = q.filter(models.Contract.customer_id == customer_id)
+    if assigned_user_id is not None:
+        q = q.filter(models.Contract.assigned_user_id == assigned_user_id)
+    return q.order_by(models.Contract.id.desc()).offset(skip).limit(limit).all()
+
+def get_contract(db: Session, contract_id: int) -> Optional[models.Contract]:
+    return db.query(models.Contract).filter(models.Contract.id == contract_id).first()
+
+def create_contract(db: Session, data: schemas.ContractCreate, company_id: int, assigned_user_id: int) -> models.Contract:
+    row = models.Contract(
+        company_id=company_id,
+        customer_id=data.customer_id,
+        assigned_user_id=assigned_user_id,
+        vehicle_model=data.vehicle_model,
+        product_type=data.product_type,
+        capital=data.capital,
+        contract_date=data.contract_date,
+        term_months=data.term_months,
+        expiry_date=data.expiry_date,
+        dealer_info=data.dealer_info,
+        insurance_active=data.insurance_active,
+        supplies_work=data.supplies_work,
+        estimate_image=data.estimate_image,
+        status=data.status,
+        memo=data.memo
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def update_contract(db: Session, contract_id: int, data: schemas.ContractUpdate) -> Optional[models.Contract]:
+    row = get_contract(db, contract_id)
+    if not row:
+        return None
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(row, k, v)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def delete_contract(db: Session, contract_id: int) -> bool:
+    row = get_contract(db, contract_id)
+    if not row:
+        return False
+    db.delete(row)
+    db.commit()
+    return True

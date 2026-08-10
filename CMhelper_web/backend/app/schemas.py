@@ -157,6 +157,50 @@ class CustomerOut(CustomerBase):
     updated_at:       datetime
     consultations: List[ConsultationOut] = []
     model_config = {"from_attributes": True}
+# ── Contracts ─────────────────────────────────────────────────────────────────
+
+class ContractBase(BaseModel):
+    vehicle_model:    Optional[str] = None
+    product_type:     Optional[str] = None
+    capital:          Optional[str] = None
+    contract_date:    Optional[str] = None
+    term_months:      Optional[int] = None
+    expiry_date:      Optional[str] = None
+    dealer_info:      Optional[str] = None
+    insurance_active: Optional[bool] = False
+    supplies_work:    Optional[str] = None
+    estimate_image:   Optional[str] = None
+    status:           Optional[str] = "ACTIVE"
+    memo:             Optional[str] = None
+
+class ContractCreate(ContractBase):
+    customer_id: int
+
+class ContractUpdate(BaseModel):
+    assigned_user_id: Optional[int] = None
+    vehicle_model:    Optional[str] = None
+    product_type:     Optional[str] = None
+    capital:          Optional[str] = None
+    contract_date:    Optional[str] = None
+    term_months:      Optional[int] = None
+    expiry_date:      Optional[str] = None
+    dealer_info:      Optional[str] = None
+    insurance_active: Optional[bool] = None
+    supplies_work:    Optional[str] = None
+    estimate_image:   Optional[str] = None
+    status:           Optional[str] = None
+    memo:             Optional[str] = None
+
+class ContractOut(ContractBase):
+    id:               int
+    company_id:       int
+    customer_id:      int
+    assigned_user_id: int
+    legacy_origin_customer_id: Optional[int] = None
+    created_at:       datetime
+    updated_at:       datetime
+    model_config = {"from_attributes": True}
+
 
 
 # ── Excel helpers ─────────────────────────────────────────────────────────────

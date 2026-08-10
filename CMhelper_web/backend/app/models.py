@@ -102,10 +102,44 @@ class Customer(Base):
     
     tenant = relationship("Company")
     assigned_user = relationship("User")
+    contracts = relationship("Contract", back_populates="customer")
 
     @property
     def assigned_user_name(self):
         return self.assigned_user.name if self.assigned_user else None
+
+
+class Contract(Base):
+    """Customer's financial/vehicle contract."""
+    __tablename__ = "contracts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    assigned_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    vehicle_model = Column(String, index=True, nullable=True)
+    product_type = Column(String, nullable=True)
+    capital = Column(String, nullable=True)
+    contract_date = Column(String, nullable=True)
+    term_months = Column(Integer, nullable=True)
+    expiry_date = Column(String, index=True, nullable=True)
+    dealer_info = Column(String, nullable=True)
+    insurance_active = Column(Boolean, default=False)
+    supplies_work = Column(String, nullable=True)
+    estimate_image = Column(String, nullable=True)
+    
+    status = Column(String, default="ACTIVE", nullable=False)
+    memo = Column(String, nullable=True)
+    legacy_origin_customer_id = Column(Integer, unique=True, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow,
+                        onupdate=datetime.datetime.utcnow, nullable=False)
+
+    company = relationship("Company")
+    customer = relationship("Customer", back_populates="contracts")
+    assigned_user = relationship("User")
 
 
 class Consultation(Base):

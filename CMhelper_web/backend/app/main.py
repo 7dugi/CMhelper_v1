@@ -414,6 +414,92 @@ def api_delete_consultation(log_id: int, db: Session = Depends(get_db), current_
     return {"deleted": log_id}
 
 
+# ── Contracts ─────────────────────────────────────────────────────────────────
+
+def _check_contract_ownership(contract: models.Contract, current_user: models.User):
+    if not contract:
+        raise HTTPException(404, detail="Contract not found.")
+    if contract.company_id != current_user.company_id:
+        raise HTTPException(403, detail="Forbidden: cross-tenant access.")
+    if current_user.role != models.UserRole.OWNER.value:
+        if contract.assigned_user_id != current_user.id:
+            raise HTTPException(403, detail="Forbidden: not your contract.")
+
+
+@app.get("/api/contracts", response_model=List[schemas.ContractOut])
+def api_list_contracts(
+    assigned_user_id: Optional[int] = None,
+    customer_id: Optional[int] = None,
+    scope: str = "me",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    actual_assigned_user = current_user.id
+    if current_user.role == models.UserRole.OWNER.value:
+        if scope == "all":
+            actual_assigned_user = None
+        elif assigned_user_id:
+            actual_assigned_user = assigned_user_id
+    elif scope == "all" or (assigned_user_id and assigned_user_id != current_user.id):
+        raise HTTPException(403, detail="Forbidden: USER cannot view other's contracts")
+
+    # If owner passed a specific user ID, ensure that user belongs to the same company
+    if actual_assigned_user and actual_assigned_user != current_user.id:
+        target_user = crud.get_user_by_id(db, actual_assigned_user)
+        if not target_user or target_user.company_id != current_user.company_id:
+            raise HTTPException(403, detail="Forbidden: target user not in company")
+
+    return crud.list_contracts(db, current_user.company_id, customer_id, actual_assigned_user)
+
+
+@app.get("/api/contracts/{contract_id}", response_model=schemas.ContractOut)
+def api_get_contract(contract_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    contract = crud.get_contract(db, contract_id)
+    _check_contract_ownership(contract, current_user)
+    return contract
+
+
+@app.post("/api/contracts", response_model=schemas.ContractOut, status_code=201)
+def api_create_contract(body: schemas.ContractCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    customer = crud.get_customer(db, body.customer_id)
+    _check_customer_ownership(customer, current_user)
+    
+    # fallback to customer assignee
+    assigned_user_id = customer.assigned_user_id
+    
+    return crud.create_contract(db, body, current_user.company_id, assigned_user_id)
+
+
+@app.patch("/api/contracts/{contract_id}", response_model=schemas.ContractOut)
+def api_update_contract(contract_id: int, body: schemas.ContractUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    contract = crud.get_contract(db, contract_id)
+    _check_contract_ownership(contract, current_user)
+    
+    if body.assigned_user_id is not None and body.assigned_user_id != contract.assigned_user_id:
+        if current_user.role != models.UserRole.OWNER.value:
+            raise HTTPException(403, detail="Forbidden: Only OWNER can change assigned user.")
+        target_user = crud.get_user_by_id(db, body.assigned_user_id)
+        if not target_user or target_user.company_id != current_user.company_id:
+            raise HTTPException(403, detail="Forbidden: target user not in company")
+            
+    return crud.update_contract(db, contract_id, body)
+
+
+@app.delete("/api/contracts/{contract_id}")
+def api_delete_contract(contract_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    contract = crud.get_contract(db, contract_id)
+    _check_contract_ownership(contract, current_user)
+    crud.delete_contract(db, contract_id)
+    return {"deleted": contract_id}
+
+
+@app.get("/api/customers/{customer_id}/contracts", response_model=List[schemas.ContractOut])
+def api_get_customer_contracts(customer_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    customer = crud.get_customer(db, customer_id)
+    _check_customer_ownership(customer, current_user)
+    return crud.list_contracts(db, current_user.company_id, customer_id, None)
+
+
 # ── Excel import ───────────────────────────────────────────────────────────────
 
 @app.post("/api/excel/parse")

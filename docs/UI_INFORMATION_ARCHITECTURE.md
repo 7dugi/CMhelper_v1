@@ -27,7 +27,12 @@ The main side navigation (Sidebar) will be organized as follows:
   - A table displaying basic customer info (Name, Contact, Region, Company)
   - Number of active contracts per customer
   - Assigned user (visible only to OWNERs)
-  - A detailed view for each customer (accessible via click), which will include tabs for "Info", "Contracts", and "History".
+- **Hierarchy Details (Customer Detail View)**:
+  - Clicking on a customer navigates to the **Customer Detail** page, which acts as a hub for all entity relationships.
+  - **Contracts**: A tab/section displaying all 1:N Contracts linked to this Customer.
+  - **Consultations**: A tab/section displaying the history of Consultations linked to this Customer.
+  - **Messages**: A tab/section displaying all Message Tasks (Kakao/SMS) linked to this Customer.
+  - *Hierarchy Flow: Customers -> Customer Detail -> Contracts -> Consultations -> Messages*
 
 ### 3. Contracts
 - **Purpose**: A dedicated view for managing financial/vehicle contracts across all customers.
