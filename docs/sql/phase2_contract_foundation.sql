@@ -3,6 +3,9 @@
 
 CREATE TABLE IF NOT EXISTS contracts (
     id SERIAL PRIMARY KEY,
+    -- WARNING: company_id has ON DELETE CASCADE.
+    -- In current design, company hard-delete is NOT allowed, but if it happens, Contracts will be cascaded.
+    -- Future company lifecycle (ACTIVE/INACTIVE/ARCHIVED) should be used instead.
     company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
     assigned_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,

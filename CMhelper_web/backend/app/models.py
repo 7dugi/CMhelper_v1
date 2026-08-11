@@ -1,8 +1,9 @@
 import datetime
 import uuid
 import enum
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON, text
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from .database import Base
 
 class CompanyStatus(str, enum.Enum):
@@ -125,17 +126,17 @@ class Contract(Base):
     term_months = Column(Integer, nullable=True)
     expiry_date = Column(String, index=True, nullable=True)
     dealer_info = Column(String, nullable=True)
-    insurance_active = Column(Boolean, default=False)
+    insurance_active = Column(Boolean, default=False, server_default=text("0"))
     supplies_work = Column(String, nullable=True)
     estimate_image = Column(String, nullable=True)
     
-    status = Column(String, default="ACTIVE", nullable=False)
+    status = Column(String, default="ACTIVE", server_default=text("'ACTIVE'"), nullable=False)
     memo = Column(String, nullable=True)
     legacy_origin_customer_id = Column(Integer, unique=True, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow,
-                        onupdate=datetime.datetime.utcnow, nullable=False)
+                        onupdate=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
 
     company = relationship("Company")
     customer = relationship("Customer", back_populates="contracts")

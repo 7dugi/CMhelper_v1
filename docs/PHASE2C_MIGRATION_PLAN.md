@@ -2,7 +2,7 @@
 
 This document outlines the step-by-step procedure to execute the Phase 2C Migration (Contract Foundation and Backfill) on the Production Supabase Database.
 
-**CRITICAL: This migration must NOT be run until explicit GO approval is given by the Chief Architect.**
+**STATUS: COMPLETED (See PHASE2C_EXECUTION_REPORT.md)**
 
 ## Step 1: Production Identity Verification
 Run the identity query in Supabase SQL Editor to confirm you are in the correct database.
@@ -34,6 +34,14 @@ CREATE TABLE IF NOT EXISTS contracts (
     company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
     assigned_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    
+    /* 
+       WARNING: 
+       company_id has ON DELETE CASCADE.
+       In current design, company hard-delete is NOT allowed, 
+       but if it happens, Contracts will be cascaded. 
+       Future company lifecycle (ACTIVE/INACTIVE/ARCHIVED) should be used instead.
+    */
     
     vehicle_model VARCHAR(255),
     product_type VARCHAR(255),
