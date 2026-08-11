@@ -916,7 +916,7 @@ function Dashboard({ activeFields, user }) {
             <div className="drawer-body">
               <div className="info-grid">
                   {activeFields.filter(f => f.target_type === 'common' || f.target_type === (!selected.is_contracted ? 'prospect' : 'contracted')).map(f => {
-                    if (['contract_car', 'contract_date', 'contract_months', 'expiry_date', 'capital', 'product_type', 'supplies_work', 'dealer_info'].includes(f.name)) return null;
+                    if (['contract_car', 'contract_date', 'contract_months', 'months', 'expiry_date', 'capital', 'product_type', 'supplies_work', 'dealer_info', 'insurance_active'].includes(f.name)) return null;
                     const v = getVal(selected, f);
                     return (
                       <div className="info-row" key={f.id}>
@@ -956,7 +956,7 @@ function Dashboard({ activeFields, user }) {
                       <div key={contract.id} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem', background: 'var(--bg-input)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            <span style={{ fontWeight: 600 }}>{contract.vehicle_model || '차종 미상'}</span>
+                            <span style={{ fontWeight: 600 }}>{contract.vehicle_model || '-'}</span>
                             {contract.status === 'COMPLETED' ? <span className="badge badge-ok">상태: 정상종료</span> :
                              contract.status === 'CANCELLED' ? <span className="badge badge-expired">상태: 취소/중도종료</span> : 
                              <span className="badge badge-sys">상태: 진행중</span>}
@@ -969,11 +969,12 @@ function Dashboard({ activeFields, user }) {
                           </div>
                         </div>
                         <div style={{ fontSize: '0.85rem', color: 'var(--text-2)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                          <div><strong>계약일:</strong> {contract.contract_date || '—'}</div>
-                          <div><strong>기간:</strong> {contract.term_months ? `${contract.term_months}개월` : '—'}</div>
-                          <div><strong>캐피탈:</strong> {contract.capital || '—'}</div>
-                          <div><strong>상품:</strong> {contract.product_type || '—'}</div>
-                          {user?.role === 'OWNER' && <div style={{ gridColumn: '1 / -1', marginTop: 4, color: 'var(--text-3)' }}><strong>담당자:</strong> {contract.assigned_user_name || '—'}</div>}
+                          <div><strong>계약일:</strong> {contract.contract_date || '-'}</div>
+                          <div><strong>기간:</strong> {contract.term_months ? `${contract.term_months}개월` : '-'}</div>
+                          <div><strong>만기일:</strong> {contract.expiry_date || '-'}</div>
+                          <div><strong>캐피탈:</strong> {contract.capital || '-'}</div>
+                          <div><strong>상품:</strong> {contract.product_type || '-'}</div>
+                          <div style={{ gridColumn: '1 / -1', marginTop: 4, color: 'var(--text-3)' }}><strong>담당자:</strong> {contract.assigned_user_name || '-'}</div>
                         </div>
                       </div>
                     ))}
