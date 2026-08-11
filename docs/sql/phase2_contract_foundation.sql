@@ -4,8 +4,8 @@
 CREATE TABLE IF NOT EXISTS contracts (
     id SERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-    assigned_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
+    assigned_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     
     vehicle_model VARCHAR(255),
     product_type VARCHAR(255),

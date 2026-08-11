@@ -115,8 +115,8 @@ class Contract(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
-    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
-    assigned_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False)
+    assigned_user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     
     vehicle_model = Column(String, index=True, nullable=True)
     product_type = Column(String, nullable=True)

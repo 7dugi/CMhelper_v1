@@ -9,6 +9,12 @@
 -- 실행 후 결과를 복사하여 제공해주시면 PHASE 2B 검증을 완료할 수 있습니다.
 -- ==============================================================================
 
+-- 0. DB Identity Verification
+SELECT
+    current_database() AS database_name,
+    current_schema() AS schema_name,
+    version() AS postgres_version;
+
 -- 1. Total Customer count
 SELECT 'Total Customers' AS metric, COUNT(*) AS count FROM customers;
 
@@ -40,8 +46,8 @@ SELECT 'insurance_active' AS metric, insurance_active, COUNT(*) AS count FROM cu
 SELECT
     (SELECT COUNT(*) FROM customers WHERE company_id IS NULL) AS company_id_is_null,
     (SELECT COUNT(*) FROM customers WHERE assigned_user_id IS NULL) AS assigned_user_id_is_null,
-    (SELECT COUNT(*) FROM customers c LEFT JOIN companies co ON c.company_id = co.id WHERE co.id IS NULL) AS invalid_company_fk,
-    (SELECT COUNT(*) FROM customers c LEFT JOIN users u ON c.assigned_user_id = u.id WHERE u.id IS NULL) AS invalid_user_fk,
+    (SELECT COUNT(*) FROM customers c LEFT JOIN companies co ON c.company_id = co.id WHERE c.company_id IS NOT NULL AND co.id IS NULL) AS invalid_company_fk,
+    (SELECT COUNT(*) FROM customers c LEFT JOIN users u ON c.assigned_user_id = u.id WHERE c.assigned_user_id IS NOT NULL AND u.id IS NULL) AS invalid_user_fk,
     (SELECT COUNT(*) FROM customers c JOIN users u ON c.assigned_user_id = u.id WHERE c.company_id != u.company_id) AS cross_tenant_mismatch,
     (SELECT COUNT(*) FROM customers WHERE contract_car IS NOT NULL AND contract_car != '' AND (contract_date IS NULL OR contract_date = '')) AS car_without_date,
     (SELECT COUNT(*) FROM customers WHERE contract_date IS NOT NULL AND contract_date != '' AND (contract_car IS NULL OR contract_car = '')) AS date_without_car,
@@ -71,15 +77,51 @@ SELECT
 
 -- 8. EXPIRY LOGIC RE-VERIFY
 -- Check if stored expiry_date matches (contract_date + contract_months) logic
--- (PostgreSQL DATE calculations)
-SELECT 
+-- (PostgreSQL DATE calculations matches python calendar.monthrange clamp behavior)
+SELECT
     id,
     contract_date,
     contract_months,
     expiry_date AS stored_expiry_date,
-    TO_CHAR((contract_date::DATE + (contract_months || ' months')::INTERVAL), 'YYYY-MM-DD') AS calculated_expiry_date
+    TO_CHAR(
+        contract_date::DATE
+        + (contract_months || ' months')::INTERVAL,
+        'YYYY-MM-DD'
+    ) AS calculated_expiry_date
 FROM customers
-WHERE contract_date IS NOT NULL AND contract_date != ''
-  AND contract_months IS NOT NULL AND contract_months > 0
-  AND expiry_date != TO_CHAR((contract_date::DATE + (contract_months || ' months')::INTERVAL), 'YYYY-MM-DD')
-LIMIT 10;
+WHERE contract_date IS NOT NULL
+  AND contract_date != ''
+  AND contract_months IS NOT NULL
+  AND contract_months > 0
+  AND (
+      expiry_date IS NULL
+      OR expiry_date = ''
+      OR expiry_date != TO_CHAR(
+          contract_date::DATE
+          + (contract_months || ' months')::INTERVAL,
+          'YYYY-MM-DD'
+      )
+  )
+ORDER BY id;
+
+-- 9. BACKFILL ELIGIBLE CUSTOMER DETAIL LIST
+-- Review exactly which rows will be migrated as Contracts
+SELECT
+    id,
+    company_id,
+    assigned_user_id,
+    contract_car,
+    contract_date,
+    contract_months,
+    expiry_date,
+    capital,
+    product_type
+FROM customers
+WHERE
+       (contract_car IS NOT NULL AND contract_car != '')
+    OR (contract_date IS NOT NULL AND contract_date != '')
+    OR (contract_months IS NOT NULL AND contract_months > 0)
+    OR (expiry_date IS NOT NULL AND expiry_date != '')
+    OR (capital IS NOT NULL AND capital != '')
+    OR (product_type IS NOT NULL AND product_type != '')
+ORDER BY id;

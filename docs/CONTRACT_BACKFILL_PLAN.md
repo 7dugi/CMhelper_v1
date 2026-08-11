@@ -26,10 +26,12 @@ We should only migrate customers that actually have contract data. Creating blan
 **Condition:** A contract will be backfilled only if the customer has at least one of the core vehicle/financial data points.
 
 ```sql
-WHERE contract_car IS NOT NULL 
-   OR contract_date IS NOT NULL 
-   OR product_type IS NOT NULL 
-   OR capital IS NOT NULL
+WHERE (contract_car IS NOT NULL AND contract_car != '')
+   OR (contract_date IS NOT NULL AND contract_date != '')
+   OR (contract_months IS NOT NULL AND contract_months > 0)
+   OR (expiry_date IS NOT NULL AND expiry_date != '')
+   OR (capital IS NOT NULL AND capital != '')
+   OR (product_type IS NOT NULL AND product_type != '');
 ```
 
 ## 3. Idempotency
@@ -39,9 +41,20 @@ The table schema defines a partial unique index:
 ```sql
 CREATE UNIQUE INDEX uq_contracts_legacy_origin ON contracts(legacy_origin_customer_id) WHERE legacy_origin_customer_id IS NOT NULL;
 ```
-The migration SQL will use `ON CONFLICT DO NOTHING`:
+The migration SQL will use `ON CONFLICT (legacy_origin_customer_id) DO NOTHING;`.
 
-## 4. Dry-run SQL Queries
+## 4. Precondition & Fail Fast
+
+Invalid tenant data should fail migration rather than be silently repaired.
+Before executing the backfill, we MUST verify:
+1. `company_id` IS NOT NULL
+2. `assigned_user_id` IS NOT NULL
+3. Valid foreign keys for company and user
+4. No cross-tenant mismatch
+
+Any failures here must block the migration. We DO NOT use `COALESCE` to mask missing data.
+
+## 5. Dry-run SQL Queries
 
 Before executing the migration, run these queries in Supabase to estimate the impact.
 
@@ -49,13 +62,15 @@ Before executing the migration, run these queries in Supabase to estimate the im
 ```sql
 SELECT COUNT(*)
 FROM customers
-WHERE contract_car IS NOT NULL 
-   OR contract_date IS NOT NULL 
-   OR product_type IS NOT NULL 
-   OR capital IS NOT NULL;
+WHERE (contract_car IS NOT NULL AND contract_car != '')
+   OR (contract_date IS NOT NULL AND contract_date != '')
+   OR (contract_months IS NOT NULL AND contract_months > 0)
+   OR (expiry_date IS NOT NULL AND expiry_date != '')
+   OR (capital IS NOT NULL AND capital != '')
+   OR (product_type IS NOT NULL AND product_type != '');
 ```
 
-**Preview the data mapping (LIMIT 10):**
+**Preview the data mapping:**
 ```sql
 SELECT 
     id as legacy_origin_customer_id,
@@ -67,14 +82,16 @@ SELECT
     contract_months as term_months,
     expiry_date
 FROM customers
-WHERE contract_car IS NOT NULL 
-   OR contract_date IS NOT NULL 
-   OR product_type IS NOT NULL 
-   OR capital IS NOT NULL
-LIMIT 10;
+WHERE (contract_car IS NOT NULL AND contract_car != '')
+   OR (contract_date IS NOT NULL AND contract_date != '')
+   OR (contract_months IS NOT NULL AND contract_months > 0)
+   OR (expiry_date IS NOT NULL AND expiry_date != '')
+   OR (capital IS NOT NULL AND capital != '')
+   OR (product_type IS NOT NULL AND product_type != '')
+ORDER BY id;
 ```
 
-## 5. Execution Draft SQL
+## 6. Execution Draft SQL
 
 ```sql
 INSERT INTO contracts (
@@ -94,7 +111,7 @@ INSERT INTO contracts (
     legacy_origin_customer_id
 )
 SELECT 
-    COALESCE(c.company_id, u.company_id) AS company_id,
+    c.company_id,
     c.id AS customer_id,
     c.assigned_user_id,
     c.contract_car AS vehicle_model,
@@ -109,11 +126,12 @@ SELECT
     c.estimate_image,
     c.id AS legacy_origin_customer_id
 FROM customers c
-JOIN users u ON c.assigned_user_id = u.id
-WHERE c.contract_car IS NOT NULL 
-   OR c.contract_date IS NOT NULL 
-   OR c.product_type IS NOT NULL 
-   OR c.capital IS NOT NULL
+WHERE ((c.contract_car IS NOT NULL AND c.contract_car != '')
+   OR (c.contract_date IS NOT NULL AND c.contract_date != '')
+   OR (c.contract_months IS NOT NULL AND c.contract_months > 0)
+   OR (c.expiry_date IS NOT NULL AND c.expiry_date != '')
+   OR (c.capital IS NOT NULL AND c.capital != '')
+   OR (c.product_type IS NOT NULL AND c.product_type != ''))
 ON CONFLICT (legacy_origin_customer_id) DO NOTHING;
 ```
 
