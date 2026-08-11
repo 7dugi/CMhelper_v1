@@ -37,5 +37,5 @@ CREATE INDEX idx_contracts_assigned_user_id ON contracts(assigned_user_id);
 CREATE INDEX idx_contracts_vehicle_model ON contracts(vehicle_model);
 CREATE INDEX idx_contracts_expiry_date ON contracts(expiry_date);
 
--- Partial unique index for idempotency during migration
-CREATE UNIQUE INDEX uq_contracts_legacy_origin ON contracts(legacy_origin_customer_id) WHERE legacy_origin_customer_id IS NOT NULL;
+-- Standard unique index for idempotency during migration (matches Production)
+CREATE UNIQUE INDEX uq_contracts_legacy_origin ON contracts(legacy_origin_customer_id);

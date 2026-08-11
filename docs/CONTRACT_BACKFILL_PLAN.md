@@ -37,9 +37,9 @@ WHERE (contract_car IS NOT NULL AND contract_car != '')
 ## 3. Idempotency
 
 To ensure the migration is idempotent (can be run multiple times safely), we use the `legacy_origin_customer_id` field.
-The table schema defines a partial unique index:
+The table schema defines a standard unique index (matching Production and ORM):
 ```sql
-CREATE UNIQUE INDEX uq_contracts_legacy_origin ON contracts(legacy_origin_customer_id) WHERE legacy_origin_customer_id IS NOT NULL;
+CREATE UNIQUE INDEX uq_contracts_legacy_origin ON contracts(legacy_origin_customer_id);
 ```
 The migration SQL will use `ON CONFLICT (legacy_origin_customer_id) DO NOTHING;`.
 

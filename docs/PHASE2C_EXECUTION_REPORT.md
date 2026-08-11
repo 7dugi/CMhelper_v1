@@ -50,17 +50,18 @@ The migration preserved 1:1 legacy origin relationships exactly as expected for 
 - **Legacy NULL Preservation:** Preserved as NULL (e.g., Customer 6 `vehicle_model`). No artificial values ("Unknown") were injected.
 
 ## Schema Idempotency
-- **Mechanism:** `CREATE UNIQUE INDEX uq_contracts_legacy_origin ON contracts(legacy_origin_customer_id) WHERE legacy_origin_customer_id IS NOT NULL;`
+- **Mechanism:** `CREATE UNIQUE INDEX uq_contracts_legacy_origin ON contracts(legacy_origin_customer_id);`
 - **Enforcement:** `ON CONFLICT (legacy_origin_customer_id) DO NOTHING` in the INSERT statement guarantees idempotency.
 
 ## Production Foreign Key Status
-- `customer_id` -> `customers.id`: `NO ACTION` (Semantically equivalent to `RESTRICT` in immediate evaluation).
-- `assigned_user_id` -> `users.id`: `NO ACTION` (Semantically equivalent to `RESTRICT` in immediate evaluation).
+- `customer_id` -> `customers.id`: `NO ACTION` (Provides equivalent protection to `RESTRICT` for our hard-delete protection purposes in non-deferrable configurations).
+- `assigned_user_id` -> `users.id`: `NO ACTION` (Provides equivalent protection to `RESTRICT` for our hard-delete protection purposes in non-deferrable configurations).
 - `company_id` -> `companies.id`: `CASCADE`. 
   - *Post-Migration Review Item:* `company_id` cascading delete might violate financial record retention if a company is hard-deleted. A soft-delete lifecycle (ACTIVE/ARCHIVED) for companies should be enforced.
 
 ## Rollback Availability
-Not required as the migration succeeded. However, since the legacy fields on the `customers` table were left untouched, rolling back simply involves dropping the `contracts` table and returning to the legacy codebase.
+Not required as the migration succeeded. However, since the legacy fields on the `customers` table were left untouched, rolling back simply involves a **logical rollback**: reverting the application read path back to the legacy structure. 
+**Note:** Dropping the `contracts` table is a destructive operation that requires backup, verification of usage, and explicit approval. It is not an automatic rollback procedure.
 
 ## Next Steps (Phase 2D/E)
 - Add `company_id`, `customer_id`, `assigned_user_id` indexes to Production DB (missed during DDL).
