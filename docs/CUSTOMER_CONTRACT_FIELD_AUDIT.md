@@ -53,6 +53,13 @@
 | `id` | Contract | `legacy_origin_customer_id`| existing value copy | YES | NO | Idempotent migration을 위한 식별키 |
 
 ## 3. Delete / Data Retention Safety Audit
-- **Customer 삭제 시**: `Contract.customer_id`의 외래키에 `ondelete="CASCADE"`가 설정되어 있지 않습니다(의도된 설계). 고객 기록이 지워지더라도 금융/계약 기록은 함부로 삭제되지 않도록 보존해야 합니다. 따라서 애플리케이션 레벨에서 명시적인 삭제나 상태 변경(`INACTIVE`)을 거쳐야 합니다.
-- **User 삭제 시**: `assigned_user_id` 또한 CASCADE되지 않으므로, 퇴사자의 계약 기록이 고아(orphan) 객체가 되지 않고 다른 관리자에게 이관될 수 있는 구조입니다.
-- **결론**: 안전하게 보호되고 있으며 현재의 Retention 정책을 충족합니다.
+- **Customer 삭제 시**: 
+  - `models.py`: `customer_id` 외래키에 `ondelete` 옵션이 지정되어 있지 않습니다.
+  - `docs/sql/phase2_contract_foundation.sql`: `ON DELETE CASCADE`가 명시되어 있습니다.
+  - **모순 발견**: 모델과 SQL Draft 간에 불일치가 존재합니다. SQL 기준으로는 고객 삭제 시 계약도 CASCADE 삭제되므로, "고객 기록이 지워져도 금융/계약 기록은 보존된다"는 이전 주장은 SQL 기준으로 성립하지 않습니다.
+- **User 삭제 시**: 
+  - `models.py`: `assigned_user_id` 외래키에 `ondelete` 옵션이 지정되어 있지 않습니다.
+  - `docs/sql/phase2_contract_foundation.sql`: `ON DELETE CASCADE`가 명시되어 있습니다.
+  - **모순 발견**: 마찬가지로 담당자가 삭제될 경우 SQL 기준으로는 해당 계약이 CASCADE 삭제될 위험이 있습니다. 담당자 퇴사 시 데이터 이관을 원한다면 `SET NULL` 또는 `RESTRICT` 적용이 필요합니다.
+- **Company 삭제 시**: 모델과 SQL 모두 `ON DELETE CASCADE`로 일관되어 있으며, 테넌트 삭제 시 데이터 파기는 의도된 동작입니다.
+- **결론**: 정책 일관성이 부족하며, SQL에 명시된 CASCADE 속성 때문에 데이터 훼손 위험(고객/담당자 삭제 시)이 존재합니다. 이번 단계에서는 정책 변경(코드/SQL 수정)을 하지 않으며, Phase 2C 설계 시 최종 확정해야 합니다.
