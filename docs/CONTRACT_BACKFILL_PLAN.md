@@ -94,25 +94,26 @@ INSERT INTO contracts (
     legacy_origin_customer_id
 )
 SELECT 
-    company_id,
-    id AS customer_id,
-    assigned_user_id,
-    contract_car AS vehicle_model,
-    product_type,
-    capital,
-    contract_date,
-    contract_months AS term_months,
-    expiry_date,
-    dealer_info,
-    insurance_active,
-    supplies_work,
-    estimate_image,
-    id AS legacy_origin_customer_id
-FROM customers
-WHERE contract_car IS NOT NULL 
-   OR contract_date IS NOT NULL 
-   OR product_type IS NOT NULL 
-   OR capital IS NOT NULL
+    COALESCE(c.company_id, u.company_id) AS company_id,
+    c.id AS customer_id,
+    c.assigned_user_id,
+    c.contract_car AS vehicle_model,
+    c.product_type,
+    c.capital,
+    c.contract_date,
+    c.contract_months AS term_months,
+    c.expiry_date,
+    c.dealer_info,
+    c.insurance_active,
+    c.supplies_work,
+    c.estimate_image,
+    c.id AS legacy_origin_customer_id
+FROM customers c
+JOIN users u ON c.assigned_user_id = u.id
+WHERE c.contract_car IS NOT NULL 
+   OR c.contract_date IS NOT NULL 
+   OR c.product_type IS NOT NULL 
+   OR c.capital IS NOT NULL
 ON CONFLICT (legacy_origin_customer_id) DO NOTHING;
 ```
 
