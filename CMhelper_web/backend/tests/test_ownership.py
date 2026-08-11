@@ -1,3 +1,10 @@
+import os
+os.environ["JWT_SECRET_KEY"] = "test-secret"
+os.environ["CMHELPER_INVITE_CODE"] = "TEST-INVITE"
+os.environ["CMHELPER_OWNER_EMAIL"] = "owner@test.com"
+os.environ["CMHELPER_DEFAULT_COMPANY_NAME"] = "Test Company"
+os.environ["CMHELPER_DEFAULT_COMPANY_SLUG"] = "test-company"
+
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app

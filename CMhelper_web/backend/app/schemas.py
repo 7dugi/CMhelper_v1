@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -172,11 +172,34 @@ class ContractBase(BaseModel):
     insurance_active: Optional[bool] = False
     supplies_work:    Optional[str] = None
     estimate_image:   Optional[str] = None
-    status:           Optional[str] = "ACTIVE"
+    status:           Optional[Literal["ACTIVE", "COMPLETED", "CANCELLED"]] = "ACTIVE"
     memo:             Optional[str] = None
+
+    @field_validator("contract_date", "expiry_date")
+    @classmethod
+    def validate_date(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        import re
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", v):
+            raise ValueError("Date must be in YYYY-MM-DD format")
+        from datetime import datetime
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Invalid date")
+        return v
+
+    @field_validator("term_months")
+    @classmethod
+    def validate_term_months(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError("term_months must be > 0")
+        return v
 
 class ContractCreate(ContractBase):
     customer_id: int
+    assigned_user_id: Optional[int] = None
 
 class ContractUpdate(BaseModel):
     assigned_user_id: Optional[int] = None
@@ -190,8 +213,30 @@ class ContractUpdate(BaseModel):
     insurance_active: Optional[bool] = None
     supplies_work:    Optional[str] = None
     estimate_image:   Optional[str] = None
-    status:           Optional[str] = None
+    status:           Optional[Literal["ACTIVE", "COMPLETED", "CANCELLED"]] = None
     memo:             Optional[str] = None
+
+    @field_validator("contract_date", "expiry_date")
+    @classmethod
+    def validate_date(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        import re
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", v):
+            raise ValueError("Date must be in YYYY-MM-DD format")
+        from datetime import datetime
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Invalid date")
+        return v
+
+    @field_validator("term_months")
+    @classmethod
+    def validate_term_months(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError("term_months must be > 0")
+        return v
 
 class ContractOut(ContractBase):
     id:               int

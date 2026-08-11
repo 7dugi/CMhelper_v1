@@ -499,16 +499,15 @@ def update_contract(db: Session, contract_id: int, data: schemas.ContractUpdate)
     row = get_contract(db, contract_id)
     if not row:
         return None
-    for k, v in data.model_dump(exclude_unset=True).items():
+    patch = data.model_dump(exclude_unset=True)
+    for k, v in patch.items():
         setattr(row, k, v)
+        
+    if "contract_date" in patch or "term_months" in patch:
+        row.expiry_date = _compute_expiry(row.contract_date, row.term_months)
+        
+    row.updated_at = datetime.datetime.utcnow()
     db.commit()
     db.refresh(row)
     return row
 
-def delete_contract(db: Session, contract_id: int) -> bool:
-    row = get_contract(db, contract_id)
-    if not row:
-        return False
-    db.delete(row)
-    db.commit()
-    return True

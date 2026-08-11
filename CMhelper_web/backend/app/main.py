@@ -464,8 +464,22 @@ def api_create_contract(body: schemas.ContractCreate, db: Session = Depends(get_
     customer = crud.get_customer(db, body.customer_id)
     _check_customer_ownership(customer, current_user)
     
-    # fallback to customer assignee
-    assigned_user_id = customer.assigned_user_id
+    if current_user.role == models.UserRole.USER.value:
+        if getattr(body, "assigned_user_id", None) is not None and body.assigned_user_id != current_user.id:
+            raise HTTPException(403, detail="USER cannot assign contracts to other users.")
+        assigned_user_id = current_user.id
+    else:
+        if getattr(body, "assigned_user_id", None) is not None:
+            target_user = crud.get_user_by_id(db, body.assigned_user_id)
+            if not target_user or target_user.company_id != current_user.company_id:
+                raise HTTPException(403, detail="Forbidden: target user not in company")
+            if target_user.status != models.UserStatus.ACTIVE.value:
+                raise HTTPException(400, detail="Cannot assign to inactive/pending user.")
+            assigned_user_id = body.assigned_user_id
+        else:
+            assigned_user_id = customer.assigned_user_id
+            
+    body.expiry_date = crud._compute_expiry(body.contract_date, body.term_months)
     
     return crud.create_contract(db, body, current_user.company_id, assigned_user_id)
 
@@ -475,12 +489,23 @@ def api_update_contract(contract_id: int, body: schemas.ContractUpdate, db: Sess
     contract = crud.get_contract(db, contract_id)
     _check_contract_ownership(contract, current_user)
     
+    if current_user.role == models.UserRole.USER.value:
+        if contract.status in ["COMPLETED", "CANCELLED"]:
+            raise HTTPException(403, detail="Historical contracts cannot be modified by USER.")
+            
+    if body.status is not None and body.status != contract.status:
+        if current_user.role == models.UserRole.USER.value:
+            if contract.status in ["COMPLETED", "CANCELLED"] or body.status == "ACTIVE":
+                raise HTTPException(403, detail="Invalid status transition for USER.")
+    
     if body.assigned_user_id is not None and body.assigned_user_id != contract.assigned_user_id:
         if current_user.role != models.UserRole.OWNER.value:
             raise HTTPException(403, detail="Forbidden: Only OWNER can change assigned user.")
         target_user = crud.get_user_by_id(db, body.assigned_user_id)
         if not target_user or target_user.company_id != current_user.company_id:
             raise HTTPException(403, detail="Forbidden: target user not in company")
+        if target_user.status != models.UserStatus.ACTIVE.value:
+            raise HTTPException(400, detail="Cannot assign to inactive/pending user.")
             
     return crud.update_contract(db, contract_id, body)
 
@@ -489,8 +514,7 @@ def api_update_contract(contract_id: int, body: schemas.ContractUpdate, db: Sess
 def api_delete_contract(contract_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     contract = crud.get_contract(db, contract_id)
     _check_contract_ownership(contract, current_user)
-    crud.delete_contract(db, contract_id)
-    return {"deleted": contract_id}
+    raise HTTPException(status_code=409, detail="계약 이력은 삭제할 수 없습니다. 계약 상태를 변경해 주세요.")
 
 
 @app.get("/api/customers/{customer_id}/contracts", response_model=List[schemas.ContractOut])

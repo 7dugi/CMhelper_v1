@@ -40,9 +40,12 @@ export const createCustomer= (body)         => req('/customers', { method:'POST'
 export const updateCustomer= (id, body)     => req(`/customers/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
 export const deleteCustomer= (id)           => req(`/customers/${id}`, { method:'DELETE' });
 
-// Consultations
-export const getContracts      = (cid) => req(`/customers/${cid}/contracts`);
-export const addConsultation   = (cid, notes) =>
+// Consultations & Contracts
+export const getContracts       = (cid) => req(`/customers/${cid}/contracts`);
+export const createContract     = (body) => req('/contracts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+export const updateContract     = (id, body) => req(`/contracts/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+
+export const addConsultation    = (cid, notes) =>
   req(`/customers/${cid}/consultations`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ notes }) });
 export const deleteConsultation = (id) => req(`/consultations/${id}`, { method:'DELETE' });
 
