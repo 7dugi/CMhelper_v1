@@ -63,7 +63,17 @@ The migration preserved 1:1 legacy origin relationships exactly as expected for 
 Not required as the migration succeeded. However, since the legacy fields on the `customers` table were left untouched, rolling back simply involves a **logical rollback**: reverting the application read path back to the legacy structure. 
 **Note:** Dropping the `contracts` table is a destructive operation that requires backup, verification of usage, and explicit approval. It is not an automatic rollback procedure.
 
+## Phase 2C.2 Production Index Maintenance
+On August 11, 2026, the following missing indexes were successfully added to the Production DB:
+- `idx_contracts_company_id` on `contracts(company_id)`
+- `idx_contracts_customer_id` on `contracts(customer_id)`
+- `idx_contracts_assigned_user_id` on `contracts(assigned_user_id)`
+
+**Post-Maintenance Verification:**
+- Contracts row count: 6 (maintained)
+- Duplicate legacy origin count: 0 (no data corruption)
+- Total contract indexes: 7
+
 ## Next Steps (Phase 2D/E)
-- Add `company_id`, `customer_id`, `assigned_user_id` indexes to Production DB (missed during DDL).
-- Update frontend UI to consume the `/contracts` endpoint.
-- Drop legacy contract fields from `customers` once the new API is fully verified in the UI.
+- Update frontend UI to consume the `/contracts` endpoint (Phase 2D).
+- Drop legacy contract fields from `customers` once the new API is fully verified in the UI (Phase 2E).

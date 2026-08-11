@@ -226,7 +226,25 @@ def delete_field(db: Session, fid: str) -> bool:
 
 def list_customers(db: Session, company_id: int, assigned_user_id: Optional[int] = None,
                    search: str = "", skip: int = 0, limit: int = 500) -> List[models.Customer]:
-    q = db.query(models.Customer).options(joinedload(models.Customer.assigned_user)).filter(models.Customer.company_id == company_id)
+    from sqlalchemy import func, case
+    today_str = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+
+    contracts_sq = db.query(
+        models.Contract.customer_id,
+        func.count(models.Contract.id).label("contract_count"),
+        func.min(
+            case(
+                (models.Contract.expiry_date >= today_str, models.Contract.expiry_date),
+                else_=None
+            )
+        ).label("nearest_expiry")
+    ).group_by(models.Contract.customer_id).subquery()
+
+    q = db.query(models.Customer, contracts_sq.c.contract_count, contracts_sq.c.nearest_expiry)\
+          .outerjoin(contracts_sq, models.Customer.id == contracts_sq.c.customer_id)\
+          .options(joinedload(models.Customer.assigned_user))\
+          .filter(models.Customer.company_id == company_id)
+
     if assigned_user_id is not None:
         q = q.filter(models.Customer.assigned_user_id == assigned_user_id)
     if search:
@@ -239,11 +257,42 @@ def list_customers(db: Session, company_id: int, assigned_user_id: Optional[int]
             models.Customer.dealer_info.ilike(like),
             models.Customer.memo.ilike(like),
         ))
-    return q.order_by(models.Customer.id.desc()).offset(skip).limit(limit).all()
+        
+    results = q.order_by(models.Customer.id.desc()).offset(skip).limit(limit).all()
+    customers = []
+    for c, cnt, exp in results:
+        c.contract_count = cnt or 0
+        c.nearest_expiry = exp
+        customers.append(c)
+    return customers
 
 
 def get_customer(db: Session, cid: int) -> Optional[models.Customer]:
-    return db.query(models.Customer).options(joinedload(models.Customer.assigned_user)).filter_by(id=cid).first()
+    from sqlalchemy import func, case
+    today_str = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+
+    contracts_sq = db.query(
+        models.Contract.customer_id,
+        func.count(models.Contract.id).label("contract_count"),
+        func.min(
+            case(
+                (models.Contract.expiry_date >= today_str, models.Contract.expiry_date),
+                else_=None
+            )
+        ).label("nearest_expiry")
+    ).group_by(models.Contract.customer_id).subquery()
+
+    row = db.query(models.Customer, contracts_sq.c.contract_count, contracts_sq.c.nearest_expiry)\
+            .outerjoin(contracts_sq, models.Customer.id == contracts_sq.c.customer_id)\
+            .options(joinedload(models.Customer.assigned_user))\
+            .filter(models.Customer.id == cid).first()
+            
+    if row:
+        c, cnt, exp = row
+        c.contract_count = cnt or 0
+        c.nearest_expiry = exp
+        return c
+    return None
 
 
 def create_customer(db: Session, data: schemas.CustomerCreate, company_id: int, assigned_user_id: int) -> models.Customer:
@@ -413,7 +462,7 @@ def update_message_task_status(db: Session, task_id: int, status: str) -> Option
 
 def list_contracts(db: Session, company_id: int, customer_id: Optional[int] = None,
                    assigned_user_id: Optional[int] = None, skip: int = 0, limit: int = 500) -> List[models.Contract]:
-    q = db.query(models.Contract).filter(models.Contract.company_id == company_id)
+    q = db.query(models.Contract).options(joinedload(models.Contract.assigned_user)).filter(models.Contract.company_id == company_id)
     if customer_id is not None:
         q = q.filter(models.Contract.customer_id == customer_id)
     if assigned_user_id is not None:

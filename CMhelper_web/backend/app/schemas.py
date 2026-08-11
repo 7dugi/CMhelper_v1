@@ -156,6 +156,8 @@ class CustomerOut(CustomerBase):
     created_at:       datetime
     updated_at:       datetime
     consultations: List[ConsultationOut] = []
+    contract_count:   int = 0
+    nearest_expiry:   Optional[str] = None
     model_config = {"from_attributes": True}
 # ── Contracts ─────────────────────────────────────────────────────────────────
 
@@ -196,6 +198,7 @@ class ContractOut(ContractBase):
     company_id:       int
     customer_id:      int
     assigned_user_id: int
+    assigned_user_name: Optional[str] = None
     legacy_origin_customer_id: Optional[int] = None
     created_at:       datetime
     updated_at:       datetime

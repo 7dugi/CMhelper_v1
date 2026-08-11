@@ -142,6 +142,10 @@ class Contract(Base):
     customer = relationship("Customer", back_populates="contracts")
     assigned_user = relationship("User")
 
+    @property
+    def assigned_user_name(self):
+        return self.assigned_user.name if self.assigned_user else None
+
 
 class Consultation(Base):
     __tablename__ = "consultations"

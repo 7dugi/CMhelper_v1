@@ -355,9 +355,18 @@ function Dashboard({ activeFields, user }) {
   const [modalMode, setModalMode] = useState(null);
   const [noteText, setNoteText]   = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'id', dir: 'desc' });
+  const [customerContracts, setCustomerContracts] = useState([]);
   
   const [workspaceFilter, setWorkspaceFilter] = useState('me');
   const [adminUsers, setAdminUsers] = useState([]);
+
+  useEffect(() => {
+    if (selected?.id) {
+      api.getContracts(selected.id).then(setCustomerContracts).catch(() => setCustomerContracts([]));
+    } else {
+      setCustomerContracts([]);
+    }
+  }, [selected?.id]);
 
   useEffect(() => {
     if (user?.role === 'OWNER') {
@@ -396,13 +405,13 @@ function Dashboard({ activeFields, user }) {
     const prospects   = customers.filter(c => c.is_prospect).length;
     const contracted  = customers.filter(c => !c.is_prospect).length;
     const expiry1m    = customers.filter(c => {
-      if (!c.expiry_date) return false;
-      const e = new Date(c.expiry_date);
+      if (!c.nearest_expiry) return false;
+      const e = new Date(c.nearest_expiry);
       return e >= now && e <= add(now,1);
     }).length;
     const expiry3m    = customers.filter(c => {
-      if (!c.expiry_date) return false;
-      const e = new Date(c.expiry_date);
+      if (!c.nearest_expiry) return false;
+      const e = new Date(c.nearest_expiry);
       return e >= now && e <= add(now,3);
     }).length;
     return { total: customers.length, prospects, contracted, expiry1m, expiry3m };
@@ -433,22 +442,22 @@ function Dashboard({ activeFields, user }) {
     } else if (filter === 'expiry_1m') {
       const limit = add(now,1);
       list = list.filter(c => {
-        if (!c.expiry_date) return false;
-        const e = new Date(c.expiry_date);
+        if (!c.nearest_expiry) return false;
+        const e = new Date(c.nearest_expiry);
         return e >= now && e <= limit;
       });
     } else if (filter === 'expiry_3m') {
       const limit = add(now,3);
       list = list.filter(c => {
-        if (!c.expiry_date) return false;
-        const e = new Date(c.expiry_date);
+        if (!c.nearest_expiry) return false;
+        const e = new Date(c.nearest_expiry);
         return e >= now && e <= limit;
       });
     } else if (filter === 'expiry_6m') {
       const limit = add(now,6);
       list = list.filter(c => {
-        if (!c.expiry_date) return false;
-        const e = new Date(c.expiry_date);
+        if (!c.nearest_expiry) return false;
+        const e = new Date(c.nearest_expiry);
         return e >= now && e <= limit;
       });
     }
@@ -457,6 +466,10 @@ function Dashboard({ activeFields, user }) {
     list.sort((a, b) => {
       let va = getVal(a, { name: sortConfig.key });
       let vb = getVal(b, { name: sortConfig.key });
+      if (sortConfig.key === 'expiry_date') {
+        va = a.nearest_expiry;
+        vb = b.nearest_expiry;
+      }
       if (va == null) va = '';
       if (vb == null) vb = '';
       if (va < vb) return sortConfig.dir === 'asc' ? -1 : 1;
@@ -663,7 +676,7 @@ function Dashboard({ activeFields, user }) {
                     {activeFields.map(f => {
                       const v = getVal(c, f);
                       // Special renders
-                      if (f.name === 'expiry_date') return <td key={f.id}><ExpiryBadge dateStr={v} /></td>;
+                      if (f.name === 'expiry_date') return <td key={f.id}><ExpiryBadge dateStr={c.nearest_expiry} /></td>;
                       if (f.name === 'is_prospect') return (
                         <td key={f.id}>
                           {renderProspectBadge(v)}
@@ -727,13 +740,13 @@ function Dashboard({ activeFields, user }) {
             <div className="drawer-body">
               <div className="info-grid">
                   {activeFields.filter(f => f.target_type === 'common' || f.target_type === (!selected.is_contracted ? 'prospect' : 'contracted')).map(f => {
+                    if (['contract_car', 'contract_date', 'contract_months', 'expiry_date', 'capital', 'product_type', 'supplies_work', 'dealer_info'].includes(f.name)) return null;
                     const v = getVal(selected, f);
                     return (
                       <div className="info-row" key={f.id}>
                         <span className="lbl">{f.label}</span>
                         <span className="val">
-                          {f.name === 'expiry_date' ? <ExpiryBadge dateStr={v} />
-                           : f.field_type === 'image' ? (v ? <a href={`${api.BASE_URL}${v}`} target="_blank" rel="noreferrer"><img src={`${api.BASE_URL}${v}`} alt="첨부" style={{ maxHeight: 150, borderRadius: 8, border:'1px solid var(--border)', marginTop: 4, display: 'block' }} /></a> : <span style={{color:'var(--text-3)'}}>미첨부</span>)
+                           {f.field_type === 'image' ? (v ? <a href={`${api.BASE_URL}${v}`} target="_blank" rel="noreferrer"><img src={`${api.BASE_URL}${v}`} alt="첨부" style={{ maxHeight: 150, borderRadius: 8, border:'1px solid var(--border)', marginTop: 4, display: 'block' }} /></a> : <span style={{color:'var(--text-3)'}}>미첨부</span>)
                            : f.field_type === 'image_gallery' ? (
                                v && v.length > 0 ? (
                                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: 4 }}>
@@ -748,13 +761,34 @@ function Dashboard({ activeFields, user }) {
                            : f.name === 'is_prospect' ? renderProspectBadge(v)
                            : f.name === 'is_contracted' ? (v ? <span className="badge badge-ok"><CheckCircle size={10}/> 기계약고객</span> : <span className="badge badge-no">미계약고객</span>)
                            : f.field_type === 'boolean' ? <span className={v ? 'badge badge-ok' : 'badge badge-no'}>{f.name === 'insurance_active' ? (v ? '가입' : '미가입') : (v ? 'Y' : 'N')}</span>
-                           : f.name === 'contract_months' && v ? `${v}개월`
                            : v != null ? String(v) : '—'}
                         </span>
                       </div>
                     );
                   })}
                 </div>
+
+                <h3 style={{ fontSize:'.9rem', fontWeight:600, marginBottom:'1rem' }}>📄 계약 내역 (Contracts)</h3>
+                {customerContracts.length === 0 ? (
+                  <p style={{ color:'var(--text-3)', fontSize:'.82rem', textAlign:'center', padding:'1rem 0' }}>등록된 계약이 없습니다.</p>
+                ) : (
+                  <div className="contracts-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                    {customerContracts.map(contract => (
+                      <div key={contract.id} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem', background: 'var(--bg-input)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                          <span style={{ fontWeight: 600 }}>{contract.vehicle_model || '차종 미상'}</span>
+                          <ExpiryBadge dateStr={contract.expiry_date} />
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-2)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                          <div><strong>계약일:</strong> {contract.contract_date || '—'}</div>
+                          <div><strong>기간:</strong> {contract.term_months ? `${contract.term_months}개월` : '—'}</div>
+                          <div><strong>캐피탈:</strong> {contract.capital || '—'}</div>
+                          <div><strong>상품:</strong> {contract.product_type || '—'}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <h3 style={{ fontSize:'.9rem', fontWeight:600, marginBottom:'1rem' }}>📋 상담 일지</h3>
               <form className="consult-form" onSubmit={handleAddNote}>
                 <input className="form-input" placeholder="새 상담 내용 입력 후 전송…"

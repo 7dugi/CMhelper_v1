@@ -41,6 +41,7 @@ export const updateCustomer= (id, body)     => req(`/customers/${id}`, { method:
 export const deleteCustomer= (id)           => req(`/customers/${id}`, { method:'DELETE' });
 
 // Consultations
+export const getContracts      = (cid) => req(`/customers/${cid}/contracts`);
 export const addConsultation   = (cid, notes) =>
   req(`/customers/${cid}/consultations`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ notes }) });
 export const deleteConsultation = (id) => req(`/consultations/${id}`, { method:'DELETE' });
