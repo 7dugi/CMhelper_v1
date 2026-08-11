@@ -459,13 +459,23 @@ function ContractForm({ initial, customerId, onSave, onClose, adminUsers, user }
           <textarea className="form-textarea" rows={2} value={form.memo} onChange={e => set('memo', e.target.value)} />
         </div>
 
-        {initial && (
+        {initial && (user?.role === 'OWNER' || initial.status === 'ACTIVE') && (
           <div className="form-row">
             <label className="form-label">계약 상태</label>
             <select className="form-select" value={form.status} onChange={e => set('status', e.target.value)}>
-              <option value="ACTIVE">진행중 (ACTIVE)</option>
-              <option value="COMPLETED">정상 완료 (COMPLETED)</option>
-              <option value="CANCELLED">중도 해지 (CANCELLED)</option>
+              {user?.role === 'OWNER' ? (
+                <>
+                  <option value="ACTIVE">진행중</option>
+                  <option value="COMPLETED">정상종료</option>
+                  <option value="CANCELLED">취소/중도종료</option>
+                </>
+              ) : (
+                <>
+                  <option value="ACTIVE">진행중</option>
+                  <option value="COMPLETED">정상종료</option>
+                  <option value="CANCELLED">취소/중도종료</option>
+                </>
+              )}
             </select>
           </div>
         )}
@@ -947,12 +957,15 @@ function Dashboard({ activeFields, user }) {
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                             <span style={{ fontWeight: 600 }}>{contract.vehicle_model || '차종 미상'}</span>
-                            {contract.status === 'COMPLETED' ? <span className="badge badge-ok">완료</span> :
-                             contract.status === 'CANCELLED' ? <span className="badge badge-expired">취소</span> : null}
+                            {contract.status === 'COMPLETED' ? <span className="badge badge-ok">상태: 정상종료</span> :
+                             contract.status === 'CANCELLED' ? <span className="badge badge-expired">상태: 취소/중도종료</span> : 
+                             <span className="badge badge-sys">상태: 진행중</span>}
                           </div>
                           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                             <ExpiryBadge dateStr={contract.expiry_date} />
-                            <button className="btn btn-ghost btn-sm" style={{ padding: '0.2rem' }} onClick={() => { setSelectedContract(contract); setContractModalMode('edit'); }}><Edit2 size={12}/></button>
+                            {(user?.role === 'OWNER' || contract.status === 'ACTIVE') && (
+                              <button className="btn btn-ghost btn-sm" style={{ padding: '0.2rem' }} onClick={() => { setSelectedContract(contract); setContractModalMode('edit'); }}><Edit2 size={12}/></button>
+                            )}
                           </div>
                         </div>
                         <div style={{ fontSize: '0.85rem', color: 'var(--text-2)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
