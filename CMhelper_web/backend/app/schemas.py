@@ -223,13 +223,12 @@ class ContractUpdate(BaseModel):
             return v
         import re
         if not re.match(r"^\d{4}-\d{2}-\d{2}$", v):
-            # Allow legacy string formats to bypass strict validation
-            return v
+            raise ValueError("Date must be in YYYY-MM-DD format")
         from datetime import datetime
         try:
             datetime.strptime(v, "%Y-%m-%d")
         except ValueError:
-            pass # allow for now
+            raise ValueError("Invalid date")
         return v
 
     @field_validator("term_months")
@@ -250,11 +249,7 @@ class ContractOut(ContractBase):
     updated_at:       datetime
     model_config = {"from_attributes": True}
 
-    @field_validator("contract_date", "expiry_date", mode="before")
-    @classmethod
-    def validate_date_out(cls, v: Optional[str]) -> Optional[str]:
-        # Outbound serialization can bypass strict format for legacy data
-        return v
+
 
 # ── Excel helpers ─────────────────────────────────────────────────────────────
 

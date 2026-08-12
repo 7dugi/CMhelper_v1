@@ -324,6 +324,32 @@ def create_customer(db: Session, data: schemas.CustomerCreate, company_id: int, 
     db.add(row)
     db.flush() # get row.id without committing
     
+    # 2D.2 Dual-write (Transactional): Create Contract row if any contract info is provided
+    has_contract = any([
+        data.contract_car, data.contract_date, data.contract_months, 
+        data.capital, data.product_type
+    ])
+    
+    if has_contract:
+        from app.models import Contract
+        contract = Contract(
+            company_id=company_id,
+            customer_id=row.id,
+            assigned_user_id=assigned_user_id,
+            legacy_origin_customer_id=None,  # 2D.2 Rule: NULL for new contracts
+            vehicle_model=data.contract_car,
+            contract_date=data.contract_date,
+            term_months=data.contract_months,
+            expiry_date=expiry,
+            capital=data.capital,
+            product_type=data.product_type,
+            supplies_work=data.supplies_work,
+            insurance_active=data.insurance_active,
+            dealer_info=data.dealer_info,
+            status="ACTIVE"
+        )
+        db.add(contract)
+
     if data.initial_consultation:
         consultation = models.Consultation(customer_id=row.id, notes=data.initial_consultation)
         db.add(consultation)
