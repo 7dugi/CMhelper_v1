@@ -26,8 +26,8 @@ This document outlines the migration plan to introduce the `quotes` table into t
 | `capital_company`  | VARCHAR           | NULLABLE                                                   | Financial provider name              |
 | `notes`            | TEXT              | NULLABLE                                                   | Additional remarks                   |
 | `extra`            | JSONB             | DEFAULT '{}'                                               | Future-proof JSON payload            |
-| `created_at`       | TIMESTAMP(TZ)     | DEFAULT now()                                              | Creation timestamp                   |
-| `updated_at`       | TIMESTAMP(TZ)     | DEFAULT now()                                              | Last update timestamp                |
+| `created_at`       | TIMESTAMP     | DEFAULT now()                                              | Creation timestamp                   |
+| `updated_at`       | TIMESTAMP     | DEFAULT now()                                              | Last update timestamp                |
 
 ## Migration SQL (DDL)
 
@@ -52,8 +52,8 @@ CREATE TABLE quotes (
     capital_company VARCHAR,
     notes TEXT,
     extra JSONB DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_quotes_company_id ON quotes(company_id);
@@ -72,5 +72,17 @@ DROP TABLE IF EXISTS quotes;
 - Foreign key cascading is strictly prohibited for `assigned_user_id` to prevent accidental loss of financial data if a user is hard-deleted. Use `RESTRICT` instead.
 - The `quotes` endpoints perform dual checks: ensuring the `Quote` belongs to the `Company` and that `USER` role users can only act upon Quotes where `assigned_user_id == current_user.id`.
 
-## Status
-- **Pending**: Ready for execution via Supabase SQL Editor in a controlled manner upon user approval.
+
+
+## Production Migration Status
+**PHASE 3B PRODUCTION MIGRATION = COMPLETE**
+
+- quotes table verified
+- Quote schema verified
+- FK verified
+- Delete Rules verified
+- JSONB default verified
+- Required indexes verified
+- Initial Quote row count = 0
+- Backfill not required
+- Production migration completed successfully
