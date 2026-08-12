@@ -579,3 +579,44 @@ def update_opportunity(db: Session, opportunity_id: int, data: schemas.Opportuni
     db.commit()
     db.refresh(row)
     return row
+
+
+# 式式 Quotes 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
+
+def get_quote(db: Session, quote_id: int) -> Optional[models.Quote]:
+    return db.query(models.Quote).filter(models.Quote.id == quote_id).first()
+
+def list_quotes(db: Session, company_id: int, opportunity_id: Optional[int] = None, assigned_user_id: Optional[int] = None, product_type: Optional[str] = None) -> List[models.Quote]:
+    q = db.query(models.Quote).filter(models.Quote.company_id == company_id)
+    if opportunity_id:
+        q = q.filter(models.Quote.opportunity_id == opportunity_id)
+    if assigned_user_id:
+        q = q.filter(models.Quote.assigned_user_id == assigned_user_id)
+    if product_type:
+        q = q.filter(models.Quote.product_type == product_type)
+    return q.order_by(models.Quote.id.desc()).all()
+
+def create_quote(db: Session, data: schemas.QuoteCreate, company_id: int, assigned_user_id: int) -> models.Quote:
+    row = models.Quote(
+        **data.model_dump(exclude={'assigned_user_id', 'opportunity_id'}),
+        company_id=company_id,
+        opportunity_id=data.opportunity_id,
+        assigned_user_id=assigned_user_id
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def update_quote(db: Session, quote_id: int, data: schemas.QuoteUpdate) -> Optional[models.Quote]:
+    row = get_quote(db, quote_id)
+    if not row:
+        return None
+    patch = data.model_dump(exclude_unset=True)
+    for k, v in patch.items():
+        setattr(row, k, v)
+    row.updated_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return row
+

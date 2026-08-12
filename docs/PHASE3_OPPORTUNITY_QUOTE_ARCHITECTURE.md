@@ -101,3 +101,10 @@ Before proceeding with Phase 3A, the Chief Architect/User must confirm:
 - **Hard Delete Prevention:** Opportunities cannot be hard-deleted (returns 409). The API verifies ownership and tenant isolation before returning 409 to prevent cross-tenant existence enumeration.
 - **Closed Opportunity Recovery:** Only OWNERs can recover (modify) closed (WON/LOST) opportunities. USERs cannot modify closed opportunities.
 
+
+## 12. Phase 3B Confirmed RBAC Policies
+- **OWNER Quote Management:** OWNERs can view all quotes in their company and reassign quotes to any ACTIVE user in the same company.
+- **USER Quote Management:** USERs can only view and create quotes for Opportunities they own. They cannot reassign quotes to other users.
+- **Hard Delete Prevention:** Quotes cannot be hard-deleted (returns 409) to preserve financial history and referential integrity.
+- **Strict Tenant Isolation:** All operations enforce company_id boundaries, preventing any cross-tenant data leakage or existence enumeration.
+- **Data Precision:** Financial fields (ehicle_price, deposit, monthly_payment, etc.) use BigInteger (or integer equivalent) to prevent float precision loss. Rates (interest_rate, esidual_rate) use Numeric(5,2) for percentage precision.

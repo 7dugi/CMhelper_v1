@@ -1,7 +1,8 @@
 import datetime
 import uuid
 import enum
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON, text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON, text, BigInteger, Numeric
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -38,6 +39,7 @@ class Company(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
 
     users = relationship("User", back_populates="company")
+    quotes = relationship("Quote", back_populates="company")
 
 class User(Base):
     __tablename__ = "users"
@@ -53,6 +55,7 @@ class User(Base):
     updated_at    = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False)
 
     company = relationship("Company", back_populates="users")
+    quotes = relationship("Quote", back_populates="assigned_user")
 
 
 class FieldDefinition(Base):
@@ -177,6 +180,50 @@ class Opportunity(Base):
     company = relationship("Company")
     customer = relationship("Customer", back_populates="opportunities")
     assigned_user = relationship("User")
+    quotes = relationship("Quote", back_populates="opportunity")
+
+    @property
+    def assigned_user_name(self):
+        return self.assigned_user.name if self.assigned_user else None
+
+
+class Quote(Base):
+    """A specific saved quote snapshot for an opportunity."""
+    __tablename__ = "quotes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    opportunity_id = Column(Integer, ForeignKey("opportunities.id", ondelete="RESTRICT"), nullable=False)
+    assigned_user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+
+    product_type = Column(String, nullable=False) # RENT, LEASE, INSTALLMENT, CASH
+    vehicle_name = Column(String, nullable=False)
+    
+    vehicle_price = Column(BigInteger, nullable=True)
+    discount_amount = Column(BigInteger, nullable=True)
+    deposit_amount = Column(BigInteger, nullable=True)
+    down_payment = Column(BigInteger, nullable=True)
+    monthly_payment = Column(BigInteger, nullable=True)
+    residual_value = Column(BigInteger, nullable=True)
+    
+    term_months = Column(Integer, nullable=True)
+    
+    interest_rate = Column(Numeric(5, 2), nullable=True)
+    residual_rate = Column(Numeric(5, 2), nullable=True)
+    annual_mileage = Column(Integer, nullable=True)
+    
+    capital_company = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    
+    extra = Column(JSON().with_variant(JSONB, 'postgresql'), default=dict, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow,
+                        onupdate=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
+
+    company = relationship("Company", back_populates="quotes")
+    opportunity = relationship("Opportunity", back_populates="quotes")
+    assigned_user = relationship("User", back_populates="quotes")
 
     @property
     def assigned_user_name(self):

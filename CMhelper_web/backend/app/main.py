@@ -607,6 +607,81 @@ def api_delete_opportunity(opportunity_id: int, db: Session = Depends(get_db), c
     raise HTTPException(status_code=409, detail="Opportunities cannot be hard deleted.")
 
 
+# ── Quotes ────────────────────────────────────────────────────────────────
+
+def _check_quote_ownership(quote: Optional[models.Quote], current_user: models.User):
+    if not quote:
+        raise HTTPException(status_code=404, detail="Quote not found.")
+    if quote.company_id != current_user.company_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this quote.")
+    if current_user.role == models.UserRole.USER.value and quote.assigned_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this quote.")
+
+@app.post("/api/quotes", response_model=schemas.QuoteOut)
+def api_create_quote(data: schemas.QuoteCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    opp = crud.get_opportunity(db, data.opportunity_id)
+    _check_opportunity_ownership(opp, current_user)
+    
+    assigned_user_id = opp.assigned_user_id
+    if data.assigned_user_id:
+        assigned_user_id = data.assigned_user_id
+        
+    if current_user.role == models.UserRole.USER.value:
+        assigned_user_id = current_user.id
+    else:
+        target_user = crud.get_user_by_id(db, assigned_user_id)
+        if not target_user or target_user.company_id != current_user.company_id or target_user.status != models.UserStatus.ACTIVE.value:
+            raise HTTPException(status_code=400, detail="Invalid assigned_user_id.")
+
+    return crud.create_quote(db, data, current_user.company_id, assigned_user_id)
+
+@app.get("/api/quotes", response_model=List[schemas.QuoteOut])
+def api_list_quotes(opportunity_id: Optional[int] = None, assigned_user_id: Optional[int] = None, product_type: Optional[str] = None, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    target_assigned_user_id = assigned_user_id
+    if current_user.role == models.UserRole.USER.value:
+        target_assigned_user_id = current_user.id
+        
+    return crud.list_quotes(db, current_user.company_id, opportunity_id, target_assigned_user_id, product_type)
+
+@app.get("/api/opportunities/{opportunity_id}/quotes", response_model=List[schemas.QuoteOut])
+def api_list_opportunity_quotes(opportunity_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    opp = crud.get_opportunity(db, opportunity_id)
+    _check_opportunity_ownership(opp, current_user)
+    
+    target_assigned_user_id = None
+    if current_user.role == models.UserRole.USER.value:
+        target_assigned_user_id = current_user.id
+        
+    return crud.list_quotes(db, current_user.company_id, opportunity_id, target_assigned_user_id, None)
+
+@app.get("/api/quotes/{quote_id}", response_model=schemas.QuoteOut)
+def api_get_quote(quote_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    quote = crud.get_quote(db, quote_id)
+    _check_quote_ownership(quote, current_user)
+    return quote
+
+@app.patch("/api/quotes/{quote_id}", response_model=schemas.QuoteOut)
+def api_update_quote(quote_id: int, data: schemas.QuoteUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    quote = crud.get_quote(db, quote_id)
+    _check_quote_ownership(quote, current_user)
+    
+    if data.assigned_user_id is not None and data.assigned_user_id != quote.assigned_user_id:
+        if current_user.role == models.UserRole.USER.value:
+            raise HTTPException(status_code=403, detail="USER cannot reassign quotes.")
+        target_user = crud.get_user_by_id(db, data.assigned_user_id)
+        if not target_user or target_user.company_id != current_user.company_id or target_user.status != models.UserStatus.ACTIVE.value:
+            raise HTTPException(status_code=400, detail="Invalid assigned_user_id.")
+            
+    updated = crud.update_quote(db, quote_id, data)
+    return updated
+
+@app.delete("/api/quotes/{quote_id}")
+def api_delete_quote(quote_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    quote = crud.get_quote(db, quote_id)
+    _check_quote_ownership(quote, current_user)
+    raise HTTPException(status_code=409, detail="Quotes cannot be hard deleted.")
+
+
 # ── Excel import ───────────────────────────────────────────────────────────────
 
 @app.post("/api/excel/parse")

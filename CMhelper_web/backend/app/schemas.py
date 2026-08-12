@@ -287,6 +287,129 @@ class OpportunityOut(OpportunityBase):
     model_config = {"from_attributes": True}
 
 
+# ── Quote ────────────────────────────────────────────────────────────────
+
+class QuoteBase(BaseModel):
+    product_type: str
+    vehicle_name: str
+    
+    vehicle_price: Optional[int] = None
+    discount_amount: Optional[int] = None
+    deposit_amount: Optional[int] = None
+    down_payment: Optional[int] = None
+    monthly_payment: Optional[int] = None
+    residual_value: Optional[int] = None
+    
+    term_months: Optional[int] = None
+    
+    interest_rate: Optional[float] = None
+    residual_rate: Optional[float] = None
+    annual_mileage: Optional[int] = None
+    
+    capital_company: Optional[str] = None
+    notes: Optional[str] = None
+    
+    extra: Optional[dict] = Field(default_factory=dict)
+
+    @field_validator("product_type")
+    @classmethod
+    def validate_product_type(cls, v: str) -> str:
+        allowed = ["RENT", "LEASE", "INSTALLMENT", "CASH"]
+        if v not in allowed:
+            raise ValueError(f"Invalid product_type. Allowed: {allowed}")
+        return v
+
+    @field_validator("vehicle_price", "discount_amount", "deposit_amount", "down_payment", "monthly_payment", "residual_value")
+    @classmethod
+    def validate_positive_money(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 0:
+            raise ValueError("Money amount cannot be negative")
+        return v
+
+    @field_validator("term_months")
+    @classmethod
+    def validate_term_months(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError("term_months must be > 0")
+        return v
+
+    @field_validator("interest_rate", "residual_rate")
+    @classmethod
+    def validate_positive_rate(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0:
+            raise ValueError("Rate cannot be negative")
+        return v
+
+
+class QuoteCreate(QuoteBase):
+    opportunity_id: int
+    assigned_user_id: Optional[int] = None
+
+
+class QuoteUpdate(BaseModel):
+    product_type: Optional[str] = None
+    vehicle_name: Optional[str] = None
+    
+    vehicle_price: Optional[int] = None
+    discount_amount: Optional[int] = None
+    deposit_amount: Optional[int] = None
+    down_payment: Optional[int] = None
+    monthly_payment: Optional[int] = None
+    residual_value: Optional[int] = None
+    
+    term_months: Optional[int] = None
+    
+    interest_rate: Optional[float] = None
+    residual_rate: Optional[float] = None
+    annual_mileage: Optional[int] = None
+    
+    capital_company: Optional[str] = None
+    notes: Optional[str] = None
+    
+    extra: Optional[dict] = None
+    assigned_user_id: Optional[int] = None
+
+    @field_validator("product_type")
+    @classmethod
+    def validate_product_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            allowed = ["RENT", "LEASE", "INSTALLMENT", "CASH"]
+            if v not in allowed:
+                raise ValueError(f"Invalid product_type. Allowed: {allowed}")
+        return v
+
+    @field_validator("vehicle_price", "discount_amount", "deposit_amount", "down_payment", "monthly_payment", "residual_value")
+    @classmethod
+    def validate_positive_money(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 0:
+            raise ValueError("Money amount cannot be negative")
+        return v
+
+    @field_validator("term_months")
+    @classmethod
+    def validate_term_months(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError("term_months must be > 0")
+        return v
+
+    @field_validator("interest_rate", "residual_rate")
+    @classmethod
+    def validate_positive_rate(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0:
+            raise ValueError("Rate cannot be negative")
+        return v
+
+class QuoteOut(QuoteBase):
+    id: int
+    company_id: int
+    opportunity_id: int
+    assigned_user_id: int
+    assigned_user_name: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
 # ── Excel helpers ─────────────────────────────────────────────────────────────
 
 class MappingItem(BaseModel):
