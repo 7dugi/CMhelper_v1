@@ -72,3 +72,12 @@ export const uploadFile = (file) => {
 export const queueMessages = (tasks) => 
   req('/messages/queue', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(tasks) });
 export const getMessageHistory = (limit=200) => req(`/messages/history?limit=${limit}`);
+
+// Opportunities & Quotes
+export const getCustomerOpportunities = (customerId) => req(`/customers/${customerId}/opportunities`);
+export const createOpportunity        = (body) => req('/opportunities', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+export const updateOpportunity        = (id, body) => req(`/opportunities/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+
+export const getOpportunityQuotes     = (opportunityId) => req(`/opportunities/${opportunityId}/quotes`);
+export const createQuote              = (body) => req('/quotes', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+export const updateQuote              = (id, body) => req(`/quotes/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });

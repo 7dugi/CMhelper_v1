@@ -11,6 +11,7 @@ import * as api from './api';
 import MessageSender from './MessageSender';
 import AuthScreen from './auth/AuthScreen';
 import UserManagement from './UserManagement';
+import OpportunitySection from './components/opportunities/OpportunityModule';
 
 /* ─── constants ─────────────────────────────────────────────────────── */
 const SYSTEM_KEYS = new Set([
@@ -949,8 +950,10 @@ function Dashboard({ activeFields, user }) {
                   })}
                 </div>
 
+                <OpportunitySection customerId={selected.id} user={user} adminUsers={adminUsers} />
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'1rem' }}>
-                  <h3 style={{ fontSize:'.9rem', fontWeight:600, margin: 0 }}>📄 계약 내역 (Contracts)</h3>
+                  <h3 style={{ fontSize:'.9rem', fontWeight:600, margin: 0 }}>📄 계약 내역</h3>
                   <button className="btn btn-secondary btn-sm" onClick={() => { setContractModalMode('create'); setSelectedContract(null); }} style={{ padding: '0.2rem 0.6rem' }}><Plus size={12}/> 계약 추가</button>
                 </div>
                 {customerContracts.length === 0 ? (
