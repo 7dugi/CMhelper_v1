@@ -327,7 +327,7 @@ def create_customer(db: Session, data: schemas.CustomerCreate, company_id: int, 
     # 2D.2 Dual-write (Transactional): Create Contract row if any contract info is provided
     has_contract = any([
         data.contract_car, data.contract_date, data.contract_months, 
-        data.capital, data.product_type
+        data.expiry_date, data.capital, data.product_type
     ])
     
     if has_contract:
