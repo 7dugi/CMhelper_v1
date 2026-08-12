@@ -83,8 +83,13 @@ function ExpiryBadge({ dateStr }) {
 /* ─── CustomerForm ───────────────────────────────────────────────────── */
 function CustomerForm({ formType, fields, initial, onSave, onClose }) {
   const visibleFields = useMemo(() => {
-    return fields.filter(fd => fd.target_type === 'common' || fd.target_type === formType);
-  }, [fields, formType]);
+    let fds = fields.filter(fd => fd.target_type === 'common' || fd.target_type === formType);
+    if (initial) {
+      const legacyContractFields = ['contract_car', 'contract_date', 'contract_months', 'months', 'expiry_date', 'capital', 'product_type', 'supplies_work', 'dealer_info', 'insurance_active', 'estimate_image'];
+      fds = fds.filter(fd => !legacyContractFields.includes(fd.name));
+    }
+    return fds;
+  }, [fields, formType, initial]);
 
   const [form, setForm] = useState(() => {
     const f = {};
