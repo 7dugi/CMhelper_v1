@@ -1,5 +1,9 @@
 import os
 os.environ["JWT_SECRET_KEY"] = "test-secret"
+os.environ["CMHELPER_INVITE_CODE"] = "TEST-INVITE"
+os.environ["CMHELPER_OWNER_EMAIL"] = "owner@test.com"
+os.environ["CMHELPER_DEFAULT_COMPANY_NAME"] = "Test Company"
+os.environ["CMHELPER_DEFAULT_COMPANY_SLUG"] = "test-company"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -26,8 +30,6 @@ def override_get_db():
     finally:
         db.close()
 
-app.dependency_overrides[get_db] = override_get_db
-
 @pytest.fixture(scope="module")
 def db_session():
     Base.metadata.create_all(bind=engine)
@@ -38,8 +40,10 @@ def db_session():
 
 @pytest.fixture(scope="module")
 def client():
+    app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
+    app.dependency_overrides.clear()
 
 @pytest.fixture(scope="module")
 def setup_data(db_session):
