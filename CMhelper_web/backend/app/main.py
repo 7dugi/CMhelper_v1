@@ -524,6 +524,89 @@ def api_get_customer_contracts(customer_id: int, db: Session = Depends(get_db), 
     return crud.list_contracts(db, current_user.company_id, customer_id, None)
 
 
+# ── Opportunity ──────────────────────────────────────────────────────────
+
+def _check_opportunity_ownership(opportunity: models.Opportunity, current_user: models.User):
+    if not opportunity:
+        raise HTTPException(404, detail="Opportunity not found.")
+    if opportunity.company_id != current_user.company_id:
+        raise HTTPException(403, detail="Forbidden: cross-tenant access.")
+    if current_user.role != models.UserRole.OWNER.value:
+        if opportunity.assigned_user_id != current_user.id:
+            raise HTTPException(403, detail="Forbidden: not your opportunity.")
+
+@app.get("/api/opportunities", response_model=List[schemas.OpportunityOut])
+def api_list_opportunities(
+    assigned_user_id: Optional[int] = None,
+    customer_id: Optional[int] = None,
+    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+):
+    actual_assigned_user = assigned_user_id if current_user.role == models.UserRole.OWNER.value else current_user.id
+    return crud.list_opportunities(db, current_user.company_id, customer_id, actual_assigned_user)
+
+@app.get("/api/opportunities/{opportunity_id}", response_model=schemas.OpportunityOut)
+def api_get_opportunity(opportunity_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    opp = crud.get_opportunity(db, opportunity_id)
+    _check_opportunity_ownership(opp, current_user)
+    return opp
+
+@app.post("/api/opportunities", response_model=schemas.OpportunityOut, status_code=201)
+def api_create_opportunity(body: schemas.OpportunityCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    customer = crud.get_customer(db, body.customer_id)
+    _check_customer_ownership(customer, current_user)
+    
+    assigned_user_id = body.assigned_user_id
+    if current_user.role != models.UserRole.OWNER.value:
+        assigned_user_id = current_user.id
+    elif assigned_user_id is None:
+        assigned_user_id = customer.assigned_user_id
+    else:
+        target_user = crud.get_user_by_id(db, assigned_user_id)
+        if not target_user:
+            raise HTTPException(404, detail="User not found.")
+        if target_user.company_id != current_user.company_id:
+            raise HTTPException(403, detail="Forbidden: cross-tenant assignment.")
+        if target_user.status != models.UserStatus.ACTIVE.value:
+            raise HTTPException(400, detail="Cannot assign to an inactive user.")
+        
+    return crud.create_opportunity(db, body, current_user.company_id, assigned_user_id)
+
+@app.patch("/api/opportunities/{opportunity_id}", response_model=schemas.OpportunityOut)
+def api_update_opportunity(opportunity_id: int, body: schemas.OpportunityUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    opp = crud.get_opportunity(db, opportunity_id)
+    _check_opportunity_ownership(opp, current_user)
+    
+    if current_user.role != models.UserRole.OWNER.value:
+        if body.assigned_user_id is not None and body.assigned_user_id != opp.assigned_user_id:
+            raise HTTPException(403, detail="USER cannot reassign opportunities.")
+        if opp.status in ["WON", "LOST"]:
+            raise HTTPException(403, detail="USER cannot modify closed opportunities.")
+    elif body.assigned_user_id is not None:
+        target_user = crud.get_user_by_id(db, body.assigned_user_id)
+        if not target_user:
+            raise HTTPException(404, detail="User not found.")
+        if target_user.company_id != current_user.company_id:
+            raise HTTPException(403, detail="Forbidden: cross-tenant assignment.")
+        if target_user.status != models.UserStatus.ACTIVE.value:
+            raise HTTPException(400, detail="Cannot assign to an inactive user.")
+
+    return crud.update_opportunity(db, opportunity_id, body)
+
+@app.get("/api/customers/{customer_id}/opportunities", response_model=List[schemas.OpportunityOut])
+def api_get_customer_opportunities(customer_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    customer = crud.get_customer(db, customer_id)
+    _check_customer_ownership(customer, current_user)
+    
+    actual_assigned_user = None if current_user.role == models.UserRole.OWNER.value else current_user.id
+    return crud.list_opportunities(db, current_user.company_id, customer_id, actual_assigned_user)
+
+@app.delete("/api/opportunities/{opportunity_id}")
+def api_delete_opportunity(opportunity_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    opp = crud.get_opportunity(db, opportunity_id)
+    _check_opportunity_ownership(opp, current_user)
+    raise HTTPException(status_code=409, detail="Opportunities cannot be hard deleted.")
+
+
 # ── Excel import ───────────────────────────────────────────────────────────────
 
 @app.post("/api/excel/parse")

@@ -537,3 +537,45 @@ def update_contract(db: Session, contract_id: int, data: schemas.ContractUpdate)
     db.refresh(row)
     return row
 
+
+# 式式 Opportunity 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
+
+def list_opportunities(db: Session, company_id: int, customer_id: Optional[int] = None,
+                     assigned_user_id: Optional[int] = None, skip: int = 0, limit: int = 500) -> List[models.Opportunity]:
+    q = db.query(models.Opportunity).options(joinedload(models.Opportunity.assigned_user)).filter(models.Opportunity.company_id == company_id)
+    if customer_id is not None:
+        q = q.filter(models.Opportunity.customer_id == customer_id)
+    if assigned_user_id is not None:
+        q = q.filter(models.Opportunity.assigned_user_id == assigned_user_id)
+    return q.order_by(models.Opportunity.id.desc()).offset(skip).limit(limit).all()
+
+def get_opportunity(db: Session, opportunity_id: int) -> Optional[models.Opportunity]:
+    return db.query(models.Opportunity).filter(models.Opportunity.id == opportunity_id).first()
+
+def create_opportunity(db: Session, data: schemas.OpportunityCreate, company_id: int, assigned_user_id: int) -> models.Opportunity:
+    row = models.Opportunity(
+        company_id=company_id,
+        customer_id=data.customer_id,
+        assigned_user_id=data.assigned_user_id or assigned_user_id,
+        title=data.title,
+        purpose=data.purpose,
+        notes=data.notes,
+        status=models.OpportunityStatus.NEW.value
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def update_opportunity(db: Session, opportunity_id: int, data: schemas.OpportunityUpdate) -> Optional[models.Opportunity]:
+    row = get_opportunity(db, opportunity_id)
+    if not row:
+        return None
+    patch = data.model_dump(exclude_unset=True)
+    for k, v in patch.items():
+        setattr(row, k, v)
+        
+    row.updated_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return row

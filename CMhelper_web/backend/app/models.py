@@ -20,6 +20,14 @@ class UserStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
 
+class OpportunityStatus(str, enum.Enum):
+    NEW = "NEW"
+    QUOTING = "QUOTING"
+    NEGOTIATING = "NEGOTIATING"
+    WON = "WON"
+    LOST = "LOST"
+    ON_HOLD = "ON_HOLD"
+
 class Company(Base):
     __tablename__ = "companies"
 
@@ -104,6 +112,7 @@ class Customer(Base):
     tenant = relationship("Company")
     assigned_user = relationship("User")
     contracts = relationship("Contract", back_populates="customer")
+    opportunities = relationship("Opportunity", back_populates="customer", cascade="all, delete-orphan")
 
     @property
     def assigned_user_name(self):
@@ -140,6 +149,33 @@ class Contract(Base):
 
     company = relationship("Company")
     customer = relationship("Customer", back_populates="contracts")
+    assigned_user = relationship("User")
+
+    @property
+    def assigned_user_name(self):
+        return self.assigned_user.name if self.assigned_user else None
+
+
+class Opportunity(Base):
+    """Sales cycle for a customer (e.g. comparing quotes for a new vehicle)."""
+    __tablename__ = "opportunities"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False)
+    assigned_user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+
+    title = Column(String, nullable=False)
+    purpose = Column(String, nullable=True)
+    status = Column(String, default=OpportunityStatus.NEW.value, server_default=text("'NEW'"), nullable=False)
+    notes = Column(String, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow,
+                        onupdate=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
+
+    company = relationship("Company")
+    customer = relationship("Customer", back_populates="opportunities")
     assigned_user = relationship("User")
 
     @property

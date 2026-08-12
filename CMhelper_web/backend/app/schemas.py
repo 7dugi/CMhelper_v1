@@ -250,6 +250,42 @@ class ContractOut(ContractBase):
     model_config = {"from_attributes": True}
 
 
+# ── Opportunity ──────────────────────────────────────────────────────────
+
+class OpportunityBase(BaseModel):
+    title: str
+    purpose: Optional[str] = None
+    notes: Optional[str] = None
+
+class OpportunityCreate(OpportunityBase):
+    customer_id: int
+    assigned_user_id: Optional[int] = None
+
+class OpportunityUpdate(BaseModel):
+    title: Optional[str] = None
+    purpose: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    assigned_user_id: Optional[int] = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ["NEW", "QUOTING", "NEGOTIATING", "WON", "LOST", "ON_HOLD"]:
+            raise ValueError("Invalid status")
+        return v
+
+class OpportunityOut(OpportunityBase):
+    id: int
+    company_id: int
+    customer_id: int
+    assigned_user_id: int
+    assigned_user_name: Optional[str] = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
 
 # ── Excel helpers ─────────────────────────────────────────────────────────────
 
