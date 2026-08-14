@@ -85,8 +85,8 @@ function QuoteForm({ initial, opportunityId, onSave, onClose, user }) {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)' }}>
+      <div className="modal-body" style={{ flex: 1, overflowY: 'auto', paddingBottom: '1rem' }}>
         {error && <div className="alert" style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '0.5rem', borderRadius: '4px', marginBottom: '1rem' }}>{error}</div>}
         <div className="form-grid-2">
           <div className="form-row">
@@ -100,58 +100,18 @@ function QuoteForm({ initial, opportunityId, onSave, onClose, user }) {
             <input className="form-input" value={form.vehicle_name} onChange={e => set('vehicle_name', e.target.value)} required />
           </div>
           <div className="form-row">
-            <label className="form-label">차량가</label>
-            <input className="form-input" value={form.vehicle_price ? form.vehicle_price.toLocaleString() : ''} onChange={e => set('vehicle_price', parseMoney(e.target.value))} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">할인금액</label>
-            <input className="form-input" value={form.discount_amount ? form.discount_amount.toLocaleString() : ''} onChange={e => set('discount_amount', parseMoney(e.target.value))} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">보증금</label>
-            <input className="form-input" value={form.deposit_amount ? form.deposit_amount.toLocaleString() : ''} onChange={e => set('deposit_amount', parseMoney(e.target.value))} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">선납금</label>
-            <input className="form-input" value={form.down_payment ? form.down_payment.toLocaleString() : ''} onChange={e => set('down_payment', parseMoney(e.target.value))} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">월 납입금</label>
+            <label className="form-label">월 납입금 (선택)</label>
             <input className="form-input" value={form.monthly_payment ? form.monthly_payment.toLocaleString() : ''} onChange={e => set('monthly_payment', parseMoney(e.target.value))} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">잔존가치</label>
-            <input className="form-input" value={form.residual_value ? form.residual_value.toLocaleString() : ''} onChange={e => set('residual_value', parseMoney(e.target.value))} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">계약기간 (개월)</label>
-            <input type="number" className="form-input" value={form.term_months ?? ''} onChange={e => set('term_months', e.target.value !== '' ? parseInt(e.target.value, 10) : null)} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">연간 약정거리 (km)</label>
-            <input type="number" className="form-input" value={form.annual_mileage ?? ''} onChange={e => set('annual_mileage', e.target.value !== '' ? parseInt(e.target.value, 10) : null)} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">금리 (%)</label>
-            <input type="number" step="0.01" className="form-input" value={form.interest_rate ?? ''} onChange={e => set('interest_rate', e.target.value !== '' ? parseFloat(e.target.value) : null)} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">잔가율 (%)</label>
-            <input type="number" step="0.01" className="form-input" value={form.residual_rate ?? ''} onChange={e => set('residual_rate', e.target.value !== '' ? parseFloat(e.target.value) : null)} />
-          </div>
-          <div className="form-row">
-            <label className="form-label">금융사 / 렌트사</label>
-            <input className="form-input" value={form.capital_company} onChange={e => set('capital_company', e.target.value)} />
           </div>
         </div>
         <div className="form-row" style={{ marginTop: '1rem' }}>
-          <label className="form-label">메모</label>
-          <textarea className="form-input" style={{ minHeight: '60px' }} value={form.notes} onChange={e => set('notes', e.target.value)} />
+          <label className="form-label">견적 메모</label>
+          <textarea className="form-input" style={{ minHeight: '120px' }} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="예: 롯데렌터카 48개월 / 보증금 20%&#10;월 685,000원&#10;현대캐피탈보다 약 2만원 저렴&#10;고객 카톡 발송 완료" />
         </div>
       </div>
-      <div className="modal-ft">
+      <div className="modal-ft" style={{ flexShrink: 0, position: 'sticky', bottom: 0, background: 'var(--bg, #fff)', zIndex: 10, borderTop: '1px solid var(--border)' }}>
         <button type="button" className="btn btn-secondary" onClick={onClose}>취소</button>
-        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? '저장 중...' : '저장'}</button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? '저장 중...' : '견적 저장'}</button>
       </div>
     </form>
   );
@@ -191,10 +151,12 @@ function QuoteList({ opportunityId, user, quotes, loadQuotes }) {
               </div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-2)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem' }}>
                 <div><strong>상품:</strong> {PRODUCT_TYPE_LABELS[q.product_type]}</div>
-                <div><strong>차량가:</strong> {formatMoney(q.vehicle_price)}</div>
-                <div><strong>월 납입금:</strong> {formatMoney(q.monthly_payment)}</div>
-                <div><strong>계약기간:</strong> {q.term_months ? `${q.term_months}개월` : '-'}</div>
-                <div><strong>금융사:</strong> {q.capital_company || '-'}</div>
+                <div><strong>월 납입금:</strong> {formatMoney(q.monthly_payment) || '-'}</div>
+                {q.notes && (
+                  <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem', whiteSpace: 'pre-wrap', background: 'var(--bg)', padding: '0.5rem', borderRadius: '4px' }}>
+                    {q.notes}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -359,8 +321,8 @@ function OpportunityForm({ initial, customerId, onSave, onClose, user, adminUser
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="modal-body">
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)' }}>
+      <div className="modal-body" style={{ flex: 1, overflowY: 'auto', paddingBottom: '1rem' }}>
         {error && <div className="alert" style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '0.5rem', borderRadius: '4px', marginBottom: '1rem' }}>{error}</div>}
         
         <div className="form-row" style={{ marginBottom: '1rem' }}>
@@ -394,9 +356,9 @@ function OpportunityForm({ initial, customerId, onSave, onClose, user, adminUser
           <textarea className="form-input" style={{ minHeight: '80px' }} value={form.notes} onChange={e => set('notes', e.target.value)} />
         </div>
       </div>
-      <div className="modal-ft">
+      <div className="modal-ft" style={{ flexShrink: 0, position: 'sticky', bottom: 0, background: 'var(--bg, #fff)', zIndex: 10, borderTop: '1px solid var(--border)' }}>
         <button type="button" className="btn btn-secondary" onClick={onClose}>취소</button>
-        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? '저장 중...' : '저장'}</button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? '저장 중...' : '상담 저장'}</button>
       </div>
     </form>
   );
