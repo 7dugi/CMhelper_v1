@@ -85,9 +85,9 @@ function QuoteForm({ initial, opportunityId, onSave, onClose, user }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)' }}>
-      <div className="modal-body" style={{ flex: 1, overflowY: 'auto', paddingBottom: '1rem' }}>
-        {error && <div className="alert" style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '0.5rem', borderRadius: '4px', marginBottom: '1rem' }}>{error}</div>}
+    <form onSubmit={handleSubmit} className="quote-form">
+      <div className="modal-body">
+        {error && <div className="alert alert-err" style={{ marginBottom: '1rem' }}>{error}</div>}
         <div className="form-grid-2">
           <div className="form-row">
             <label className="form-label">상품 유형</label>
@@ -109,7 +109,7 @@ function QuoteForm({ initial, opportunityId, onSave, onClose, user }) {
           <textarea className="form-input" style={{ minHeight: '120px' }} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="예: 롯데렌터카 48개월 / 보증금 20%&#10;월 685,000원&#10;현대캐피탈보다 약 2만원 저렴&#10;고객 카톡 발송 완료" />
         </div>
       </div>
-      <div className="modal-ft" style={{ flexShrink: 0, position: 'sticky', bottom: 0, background: 'var(--bg, #fff)', zIndex: 10, borderTop: '1px solid var(--border)' }}>
+      <div className="modal-ft">
         <button type="button" className="btn btn-secondary" onClick={onClose}>취소</button>
         <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? '저장 중...' : '견적 저장'}</button>
       </div>
@@ -140,24 +140,27 @@ function QuoteList({ opportunityId, user, quotes, loadQuotes }) {
       {quotes.length === 0 ? (
         <p style={{ color:'var(--text-3)', fontSize:'.82rem', textAlign:'center', padding:'1rem 0' }}>등록된 견적이 없습니다.</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {quotes.map((q, i) => (
-            <div key={q.id} style={{ border: '1px solid var(--border)', borderRadius: '6px', padding: '0.75rem', background: '#fff' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                <span style={{ fontWeight: 600 }}>견적 #{i+1} - {q.vehicle_name}</span>
-                <button className="btn btn-ghost btn-sm" style={{ padding: '0.2rem' }} onClick={() => { setSelectedQuote(q); setModalMode('edit'); }}>
-                  <Edit2 size={12}/>
+            <div key={q.id} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem', background: 'var(--bg-card)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: '0.2rem' }}>견적 #{i+1}</div>
+                  <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-1)' }}>{q.vehicle_name}</div>
+                </div>
+                <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setSelectedQuote(q); setModalMode('edit'); }}>
+                  <Edit2 size={14} style={{ marginRight: '4px' }}/> 수정
                 </button>
               </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-2)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem' }}>
-                <div><strong>상품:</strong> {PRODUCT_TYPE_LABELS[q.product_type]}</div>
-                <div><strong>월 납입금:</strong> {formatMoney(q.monthly_payment) || '-'}</div>
-                {q.notes && (
-                  <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem', whiteSpace: 'pre-wrap', background: 'var(--bg)', padding: '0.5rem', borderRadius: '4px' }}>
-                    {q.notes}
-                  </div>
-                )}
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-2)', display: 'flex', gap: '1rem', marginBottom: q.notes ? '0.75rem' : '0' }}>
+                <div><span style={{ color: 'var(--text-3)' }}>상품:</span> {PRODUCT_TYPE_LABELS[q.product_type]}</div>
+                <div><span style={{ color: 'var(--text-3)' }}>월 납입금:</span> {formatMoney(q.monthly_payment) || '-'}</div>
               </div>
+              {q.notes && (
+                <div style={{ fontSize: '0.85rem', whiteSpace: 'pre-wrap', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', padding: '0.75rem', borderRadius: '6px', color: 'var(--text-2)' }}>
+                  {q.notes}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -321,9 +324,9 @@ function OpportunityForm({ initial, customerId, onSave, onClose, user, adminUser
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)' }}>
-      <div className="modal-body" style={{ flex: 1, overflowY: 'auto', paddingBottom: '1rem' }}>
-        {error && <div className="alert" style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '0.5rem', borderRadius: '4px', marginBottom: '1rem' }}>{error}</div>}
+    <form onSubmit={handleSubmit} className="opportunity-form">
+      <div className="modal-body">
+        {error && <div className="alert alert-err" style={{ marginBottom: '1rem' }}>{error}</div>}
         
         <div className="form-row" style={{ marginBottom: '1rem' }}>
           <label className="form-label">상담 제목</label>
@@ -356,7 +359,7 @@ function OpportunityForm({ initial, customerId, onSave, onClose, user, adminUser
           <textarea className="form-input" style={{ minHeight: '80px' }} value={form.notes} onChange={e => set('notes', e.target.value)} />
         </div>
       </div>
-      <div className="modal-ft" style={{ flexShrink: 0, position: 'sticky', bottom: 0, background: 'var(--bg, #fff)', zIndex: 10, borderTop: '1px solid var(--border)' }}>
+      <div className="modal-ft">
         <button type="button" className="btn btn-secondary" onClick={onClose}>취소</button>
         <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? '저장 중...' : '상담 저장'}</button>
       </div>
