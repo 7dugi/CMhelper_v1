@@ -167,7 +167,7 @@ function QuoteList({ opportunityId, user, quotes, loadQuotes }) {
       )}
 
       {modalMode && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }} onClick={() => { setModalMode(null); setSelectedQuote(null); }}>
+        <div className="overlay" style={{ zIndex: 9999 }} onClick={() => { setModalMode(null); setSelectedQuote(null); }}>
           <div className="modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-hd">
               <h2>{modalMode === 'create' ? '새 견적 추가' : '견적 수정'}</h2>
@@ -441,7 +441,7 @@ export default function OpportunitySection({ customerId, user, adminUsers }) {
       )}
 
       {modalMode === 'create' && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }} onClick={() => setModalMode(null)}>
+        <div className="overlay" style={{ zIndex: 9999 }} onClick={() => setModalMode(null)}>
           <div className="modal" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-hd">
               <h2>새 상담</h2>
