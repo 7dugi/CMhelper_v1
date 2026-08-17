@@ -9,7 +9,7 @@ TRANSITIONS: Dict[TaskState, List[TaskState]] = {
     TaskState.DESIGNING: [TaskState.IMPLEMENTING, TaskState.NEED_USER_DECISION],
     TaskState.IMPLEMENTING: [TaskState.REVIEWING, TaskState.FAILED],
     TaskState.REVIEWING: [TaskState.REVISING, TaskState.VALIDATING, TaskState.NEED_USER_DECISION, TaskState.FAILED_STALLED],
-    TaskState.REVISING: [TaskState.IMPLEMENTING],
+    TaskState.REVISING: [TaskState.IMPLEMENTING, TaskState.NEED_USER_DECISION, TaskState.FAILED_STALLED],
     TaskState.VALIDATING: [TaskState.TESTING, TaskState.BUILDING, TaskState.DB_VERIFY, TaskState.PREVIEW_DEPLOY, TaskState.UI_VERIFY, TaskState.READY_TO_COMMIT, TaskState.REVISING],
     TaskState.TESTING: [TaskState.VALIDATING],
     TaskState.BUILDING: [TaskState.VALIDATING],

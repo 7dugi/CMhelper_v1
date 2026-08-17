@@ -9,17 +9,38 @@ class EvidenceExecutor:
     
     ALLOWED_PROFILES = {
         "tests": ["python", "-m", "unittest", "discover", "-s", "automation/tests"],
-        "compileall": ["python", "-m", "compileall", "automation/"]
+        "compileall": ["python", "-m", "compileall", "automation/"],
+        "harness_tests": ["python", "-m", "unittest", "discover", "-s", "automation/tests"]
     }
 
     def __init__(self, cwd: str = PROJECT_ROOT):
         self.cwd = cwd
+        self.baseline_status = set()
+
+    def _get_current_changed_files(self) -> set:
+        """Returns a set of all currently changed and untracked files."""
+        status_out = self._run_git(["status", "--short"])
+        files = set()
+        for line in status_out.splitlines():
+            if len(line) > 2:
+                # ' M file.py', '?? new_file.py'
+                files.add(line[3:].strip())
+        return files
 
     def capture_repo_snapshot(self) -> str:
         """Captures git status and git diff."""
         status = self._run_git(["status", "--short"])
         diff = self._run_git(["diff", "--name-only"])
         return f"STATUS:\n{status}\nDIFF:\n{diff}"
+
+    def capture_baseline(self):
+        """Captures the baseline of changed files."""
+        self.baseline_status = self._get_current_changed_files()
+
+    def get_actual_new_mutation(self) -> list:
+        """Returns files changed SINCE the baseline was captured."""
+        current_status = self._get_current_changed_files()
+        return list(current_status - self.baseline_status)
 
     def capture_git_diff(self) -> str:
         """Captures detailed git diff."""

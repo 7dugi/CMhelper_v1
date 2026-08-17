@@ -9,10 +9,19 @@ USER -> Codex Remote -> ORCHESTRATOR -> Agents (Senior, Implementer, Designer) -
 ## 3. Source of Truth
 CMhelper의 장기적인 기준은 Git Repository입니다. `governance.py`를 통해 명시적인 문서를 로드하여 검증합니다.
 
-## 4. Agent Roles
-- Senior Agent: 계획 수립 및 리뷰
-- Implementer Agent: 실제 코드 구현
-- Designer Agent: 향후 UI/UX 설계 확장
+## 4. Agent Roles & Implementer Tool Boundary
+- **Senior Agent**: 계획 수립 및 리뷰
+- **Implementer Agent**: 실제 코드 구현
+- **Designer Agent**: 향후 UI/UX 설계 확장
+
+### Implementer Tool Boundary
+1. Implementer는 trusted workspace 내부 파일을 built-in file tools로 읽고 수정합니다.
+2. Implementer는 shell/git/rg/pytest/npm/MCP/Vercel을 직접 실행하지 않습니다.
+3. Git/Test/Build Evidence는 Harness `EvidenceExecutor`가 수집합니다.
+4. AI-generated arbitrary command는 실행하지 않습니다.
+5. Codex Senior가 승인한 Mutation Scope(`allowed_mutation_paths`) 밖의 파일 변경은 허용하지 않습니다.
+6. Codex Review + Validation + PassGate가 모두 PASS한 뒤 `READY_TO_COMMIT` 상태가 됩니다.
+7. 실제 Commit/Push는 User Approval 이후 단계입니다.
 
 ## 5. Provider Adapter 구조
 특정 모델과 강결합을 피하기 위해 Adapter 패턴을 사용합니다. (Codex, Antigravity 등)

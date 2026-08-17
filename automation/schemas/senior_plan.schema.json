@@ -44,6 +44,11 @@
     },
     "user_decision_required": {
       "type": "boolean"
+    },
+    "allowed_mutation_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of specific file paths that the implementer is allowed to mutate."
     }
   },
   "required": [
@@ -54,7 +59,8 @@
     "required_validations", 
     "risk_level", 
     "designer_required", 
-    "user_decision_required"
+    "user_decision_required",
+    "allowed_mutation_paths"
   ],
   "additionalProperties": false
 }

@@ -95,6 +95,7 @@ class SeniorPlan(BaseModel):
     risk_level: RiskLevel
     designer_required: bool
     user_decision_required: bool
+    allowed_mutation_paths: List[str] = Field(default_factory=list)
 
     @field_validator('required_validations')
     def validate_no_shell_commands(cls, v):
