@@ -1,0 +1,32 @@
+project_id: cmhelper
+project_name: "CMhelper B2B SaaS"
+project_root: "."
+repository: "7dugi/CMhelper_v1"
+default_branch: "main"
+development_branch: "feature/dev-harness-v1"
+governance_docs:
+  - "docs/TECHNICAL_PRINCIPLES.md"
+  - ".agents/AGENTS.md"
+  - "docs/UI_INFORMATION_ARCHITECTURE.md"
+roadmap_path: "docs/ROADMAP.md"
+current_status_path: "docs/CURRENT_STATUS.md"
+todo_path: "docs/TODO.md"
+
+supabase:
+  enabled: true
+  config:
+    project_ref: "dummy-ref-not-used-in-h8-tests"
+    
+vercel:
+  enabled: true
+  config:
+    project: "cmhelper-v1"
+    
+browser_qa:
+  enabled: true
+  config: {}
+
+test_commands:
+  - "python -m unittest discover -s automation/tests"
+build_commands:
+  - "python -m compileall automation/"

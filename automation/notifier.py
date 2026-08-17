@@ -22,6 +22,7 @@ class NotificationEvent(BaseModel):
     iteration: Optional[int] = None
     details: Optional[Any] = None
     send_to_discord: bool = False
+    project_id: Optional[str] = None
 
 class Notifier(ABC):
     @abstractmethod
@@ -70,8 +71,9 @@ class DiscordNotifier(Notifier):
             return
             
         masked_msg = SecretMasker.mask(event.message)
+        project_str = f"Project: `{event.project_id}`\n" if event.project_id else ""
         payload = {
-            "content": f"**[{event.severity}] {event.event_type}**\nTask: `{event.task_id}`\n{masked_msg}"
+            "content": f"**[{event.severity}] {event.event_type}**\n{project_str}Task: `{event.task_id}`\n{masked_msg}"
         }
         
         try:

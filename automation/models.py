@@ -110,6 +110,25 @@ class BrowserQAScenario(BaseModel):
     is_mobile: bool = False
     steps: List[BrowserQAStep] = Field(default_factory=list)
 
+class NextTaskCandidate(BaseModel):
+    project_id: str
+    title: str
+    description: str
+    source_documents: List[str]
+    reason: str
+    confidence: str # HIGH, MEDIUM, LOW
+    risk_level: str # GREEN, YELLOW, RED
+    requires_user_decision: bool
+    blocked_by: List[str] = Field(default_factory=list)
+    acceptance_criteria: List[str] = Field(default_factory=list)
+
+class NextTaskResolution(BaseModel):
+    project_id: str
+    result: str # READY, NEED_USER_DECISION, BLOCKED
+    candidate: Optional[NextTaskCandidate] = None
+    reason: str
+
+
 class StepResult(BaseModel):
     action: str
     status: str
@@ -202,6 +221,7 @@ class AcceptanceCriterion(BaseModel):
 
 class Task(BaseModel):
     id: str
+    project_id: str = "cmhelper" # default for backward compatibility
     title: str
     description: str
     state: TaskState = TaskState.NEW
@@ -215,6 +235,10 @@ class Task(BaseModel):
     requires_ui_qa: bool = False
     allowed_mutation_paths: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    # Task Entry metadata
+    request_id: Optional[str] = None
+    acceptance_criteria: List[str] = Field(default_factory=list)
 
 class LoadedDocument(BaseModel):
     path: str

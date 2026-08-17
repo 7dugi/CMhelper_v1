@@ -23,9 +23,10 @@ class Supervisor:
         self.probe = ProviderHealthChecker()
         self.health_checker = NewProviderHealthChecker(root_dir)
 
-    def _run_worker(self, task_id: str):
+    def _run_worker(self, task_state: RuntimeTaskState):
         env = os.environ.copy()
-        env["HARNESS_TASK_ID"] = task_id
+        env["HARNESS_TASK_ID"] = task_state.task_id
+        env["HARNESS_PROJECT_ID"] = getattr(task_state, "project_id", "cmhelper")
         env["PYTHONPATH"] = self.root_dir
         subprocess.run([sys.executable, "-m", "automation.main"], env=env, cwd=self.root_dir)
 
@@ -37,6 +38,7 @@ class Supervisor:
                     event_type="CRASH_DETECTED",
                     message=f"Task {state.task_id} was left in {state.state.value} without active lock.",
                     task_id=state.task_id,
+                    project_id=state.project_id,
                     severity=NotificationSeverity.ERROR
                 ))
                 
@@ -48,6 +50,7 @@ class Supervisor:
                         event_type="RECOVERED",
                         message=f"Task {state.task_id} will be resumed from {state.resume_stage.value}.",
                         task_id=state.task_id,
+                        project_id=state.project_id,
                         send_to_discord=True
                     ))
                 else:
@@ -57,6 +60,7 @@ class Supervisor:
                         event_type="MANUAL_INTERVENTION_REQUIRED",
                         message=f"Task {state.task_id} cannot be automatically recovered.",
                         task_id=state.task_id,
+                        project_id=state.project_id,
                         severity=NotificationSeverity.ACTION_REQUIRED
                     ))
 
@@ -65,7 +69,8 @@ class Supervisor:
             dispatch_notification(NotificationEvent(
                 event_type="QUOTA_PROBE",
                 message=f"Probing {state.provider} for quota availability.",
-                task_id=state.task_id
+                task_id=state.task_id,
+                project_id=state.project_id
             ))
             
             ev = self.probe.check(state.provider)
@@ -78,6 +83,7 @@ class Supervisor:
                     event_type="QUOTA_AVAILABLE",
                     message=f"Quota available for {state.provider}. Resuming.",
                     task_id=state.task_id,
+                    project_id=state.project_id,
                     send_to_discord=True
                 ))
                 return True # Request run
@@ -104,7 +110,8 @@ class Supervisor:
                 dispatch_notification(NotificationEvent(
                     event_type="TASK_DEQUEUED",
                     message=f"Dequeued task {new_state.task_id} ('{new_state.task_title}').",
-                    task_id=new_state.task_id
+                    task_id=new_state.task_id,
+                    project_id=new_state.project_id
                 ))
                 state = new_state
             else:
@@ -125,14 +132,15 @@ class Supervisor:
                     event_type="TASK_STARTING",
                     message=f"Starting queued task {state.task_id}.",
                     task_id=state.task_id,
+                    project_id=state.project_id,
                     send_to_discord=True
                 ))
-                self._run_worker(state.task_id)
+                self._run_worker(state)
 
         elif state.state == TaskState.WAITING_FOR_QUOTA:
             if not self.lock_mgr.is_locked():
                 if self._handle_quota_wait(state, now):
-                    self._run_worker(state.task_id)
+                    self._run_worker(state)
                     
         elif state.state == TaskState.WAITING_FOR_USER_APPROVAL:
             if not self.lock_mgr.is_locked():
@@ -148,9 +156,10 @@ class Supervisor:
                                 event_type="APPROVAL_GRANTED",
                                 message=f"Approval {app.approval_id} granted. Resuming from {state.state.value}.",
                                 task_id=state.task_id,
+                                project_id=state.project_id,
                                 send_to_discord=True
                             ))
-                            self._run_worker(state.task_id)
+                            self._run_worker(state)
                         elif app.status == ApprovalStatus.REJECTED:
                             state.state = TaskState.REJECTED_BY_USER
                             self.runtime_mgr.save_state(state)
@@ -160,7 +169,7 @@ class Supervisor:
                 
         elif state.state == TaskState.RESUMING:
             if not self.lock_mgr.is_locked():
-                self._run_worker(state.task_id)
+                self._run_worker(state)
 
     def run(self):
         from .task_lock import SupervisorLockManager

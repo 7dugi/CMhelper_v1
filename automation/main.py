@@ -22,6 +22,8 @@ from automation.audit_logger import AuditLogger
 from automation.orchestrator import Orchestrator
 from automation.evidence_executor import EvidenceExecutor
 from automation.permission_manager import PermissionManager
+from automation.project_registry import ProjectRegistry
+from automation.context_builder import ContextBuilder
 from automation.runtime_state import RuntimeStateManager
 from automation.approval_gate import ApprovalManager
 from automation.notifier import NotificationEvent, ConsoleNotifier, NotificationSeverity
@@ -35,6 +37,7 @@ def main():
         sys.exit(1)
 
     task_id = os.environ.get("HARNESS_TASK_ID")
+    project_id = os.environ.get("HARNESS_PROJECT_ID", "cmhelper")
     if not task_id:
         print("Error: HARNESS_TASK_ID not set.")
         sys.exit(1)
@@ -59,15 +62,24 @@ def main():
         state=state.state
     )
 
-    loader = GovernanceLoader()
-    docs = loader.load_core_documents()
+    registry = ProjectRegistry(PROJECT_ROOT)
+    config = registry.get_project(project_id)
+    if not config:
+        print(f"Error: Project Config not found for {project_id}.")
+        sys.exit(1)
+
+    ctx_builder = ContextBuilder(PROJECT_ROOT)
+    bundle = ctx_builder.build_context(config, str(registry.projects_dir))
+    
+    # Save bundle to audit for reference
+    audit.save_json("context_bundle.json", bundle)
 
     context = TaskContext(
         task=task,
-        repository_root=PROJECT_ROOT,
-        branch="feature/dev-harness-v1",
+        repository_root=config.resolve_root(str(registry.projects_dir)),
+        branch=config.development_branch,
         head="HEAD",
-        loaded_documents=docs
+        loaded_documents={}
     )
 
     orchestrator = Orchestrator(context)
@@ -182,7 +194,7 @@ def main():
             print("Running DB Inspection...")
             changed = executor.capture_changed_files()
             db_relevant = any(f.startswith("supabase/") for f in changed)
-            if db_relevant:
+            if db_relevant and config.supabase.enabled:
                 print("DB is relevant. Calling SupabaseAdapter.")
                 try:
                     db_adapter = SupabaseAdapter()
@@ -198,6 +210,12 @@ def main():
             state.last_successful_stage = TaskState.DB_INSPECTION
             
         elif state.state == TaskState.PREVIEW_DEPLOY:
+            if not config.vercel.enabled:
+                print("Vercel is not enabled for this project. Skipping.")
+                state.state = TaskState.BROWSER_QA_PLANNING
+                state.last_successful_stage = TaskState.PREVIEW_DEPLOY
+                continue
+                
             print("Running Vercel Preview Deploy...")
             try:
                 vercel = VercelAdapter(PROJECT_ROOT)
@@ -218,6 +236,12 @@ def main():
             state.last_successful_stage = TaskState.PREVIEW_DEPLOY
             
         elif state.state == TaskState.BROWSER_QA_PLANNING:
+            if not config.browser_qa.enabled:
+                print("Browser QA is not enabled for this project. Skipping.")
+                state.state = TaskState.FINAL_REVIEW
+                state.last_successful_stage = TaskState.BROWSER_QA_PLANNING
+                continue
+                
             print("Running Browser QA Planning...")
             try:
                 with open(os.path.join(audit.report_dir, "vercel_preview.json"), "r") as f:
