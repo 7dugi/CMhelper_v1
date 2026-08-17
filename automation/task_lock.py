@@ -91,3 +91,43 @@ class TaskLockManager:
         if lock_data and lock_data.task_id == task_id and lock_data.pid == os.getpid():
             if self.lock_file.exists():
                 self.lock_file.unlink()
+
+class SupervisorLockManager:
+    def __init__(self, root_dir: str):
+        self.lock_dir = Path(root_dir) / "automation" / "runtime"
+        self.lock_file = self.lock_dir / "supervisor.lock"
+        self.lock_dir.mkdir(parents=True, exist_ok=True)
+
+    def _is_process_running(self, pid: int) -> bool:
+        try:
+            p = psutil.Process(pid)
+            return p.is_running() and p.status() != psutil.STATUS_ZOMBIE
+        except psutil.NoSuchProcess:
+            return False
+
+    def acquire(self) -> bool:
+        if self.lock_file.exists():
+            try:
+                with open(self.lock_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if self._is_process_running(data.get("pid", -1)):
+                    return False
+            except Exception:
+                pass
+        
+        try:
+            with open(self.lock_file, "w", encoding="utf-8") as f:
+                json.dump({"pid": os.getpid(), "started_at": datetime.utcnow().isoformat()}, f)
+            return True
+        except Exception:
+            return False
+
+    def release(self):
+        if self.lock_file.exists():
+            try:
+                with open(self.lock_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if data.get("pid") == os.getpid():
+                    self.lock_file.unlink()
+            except Exception:
+                pass

@@ -91,7 +91,8 @@ class VercelAdapter:
                 url=url,
                 status=status,
                 created_at=latest.get("created"),
-                error_reason=latest.get("error")
+                error_reason=latest.get("error"),
+                is_production=(latest.get("target") == "production")
             )
             
         except Exception as e:

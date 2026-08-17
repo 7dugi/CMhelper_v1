@@ -30,12 +30,12 @@ class Supervisor:
         # Since it's single worker, we wait.
         env = os.environ.copy()
         env["HARNESS_TASK_ID"] = task_id
+        env["PYTHONPATH"] = self.root_dir
         
-        main_script = os.path.join(self.root_dir, "automation", "main.py")
-        subprocess.run([sys.executable, main_script], env=env)
+        subprocess.run([sys.executable, "-m", "automation.main"], env=env, cwd=self.root_dir)
 
     def _handle_crash_recovery(self, state: RuntimeTaskState):
-        if state.state in [TaskState.RUNNING, TaskState.IMPLEMENTING, TaskState.REVIEWING, TaskState.PLANNING, TaskState.DESIGNING, TaskState.VALIDATING]:
+        if state.state in [TaskState.IMPLEMENTING, TaskState.REVIEWING, TaskState.PLANNING, TaskState.DESIGNING, TaskState.VALIDATING]:
             if not self.lock_mgr.is_locked():
                 # Process crashed
                 self.notifier.notify(NotificationEvent(
@@ -123,9 +123,20 @@ class Supervisor:
 
     def loop_once(self):
         state = self.runtime_mgr.load_state()
-        if not state:
-            return
-            
+        if not state or state.state in [TaskState.COMPLETED, TaskState.FAILED, TaskState.REJECTED_BY_USER]:
+            # Try to dequeue
+            new_state = self.runtime_mgr.dequeue_task()
+            if new_state:
+                self.notifier.notify(NotificationEvent(
+                    event_type="TASK_DEQUEUED",
+                    message=f"Dequeued task {new_state.task_id} ('{new_state.task_title}').",
+                    task_id=new_state.task_id
+                ))
+                state = new_state
+            else:
+                # Nothing to do
+                return
+        
         now = datetime.now(timezone.utc)
         
         # 1. Check for crashes
@@ -133,7 +144,9 @@ class Supervisor:
         
         # Reload state in case crash recovery modified it
         state = self.runtime_mgr.load_state()
-        
+        if not state:
+            return
+            
         # 2. Process based on state
         if state.state == TaskState.QUEUED:
             if not self.lock_mgr.is_locked():
@@ -233,17 +246,26 @@ class Supervisor:
                         ))
 
     def run(self):
+        from .task_lock import SupervisorLockManager
+        sup_lock = SupervisorLockManager(self.root_dir)
+        if not sup_lock.acquire():
+            print("ALREADY_RUNNING")
+            sys.exit(0)
+            
         print("Supervisor started. Press Ctrl+C to stop.")
-        while True:
-            try:
-                self.loop_once()
-                time.sleep(SUPERVISOR_POLL_SECONDS)
-            except KeyboardInterrupt:
-                print("Supervisor stopped.")
-                break
-            except Exception as e:
-                print(f"Supervisor error: {e}")
-                time.sleep(SUPERVISOR_POLL_SECONDS)
+        try:
+            while True:
+                try:
+                    self.loop_once()
+                    time.sleep(SUPERVISOR_POLL_SECONDS)
+                except KeyboardInterrupt:
+                    print("Supervisor stopped.")
+                    break
+                except Exception as e:
+                    print(f"Supervisor error: {e}")
+                    time.sleep(SUPERVISOR_POLL_SECONDS)
+        finally:
+            sup_lock.release()
 
 if __name__ == "__main__":
     root = str(Path(__file__).parent.parent)

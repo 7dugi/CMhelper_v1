@@ -51,3 +51,7 @@ Adapter는 각 CLI의 샌드박스 정책(read-only, 프로젝트 루트 강제)
 
 ## 8. 롤아웃 및 안전장치
 모든 Adapter는 `DRY_RUN=True` 설정에서 외부 연동을 억제하며, 루프에 빠지더라도 `MAX_AUTONOMOUS_REVIEW_ITERATIONS` 제한에 따라 사용자 결정 모드로 진입합니다.
+
+## 9. 참고 사항
+- 본 문서는 CMhelper 개발 하네스의 기본 구조 및 안전 실행 가이드라인을 정의합니다.
+

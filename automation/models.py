@@ -44,9 +44,11 @@ class TaskState(str, Enum):
     VALIDATING = "VALIDATING"
     TESTING = "TESTING"
     BUILDING = "BUILDING"
-    DB_VERIFY = "DB_VERIFY"
+    DB_INSPECTION = "DB_INSPECTION"
     PREVIEW_DEPLOY = "PREVIEW_DEPLOY"
-    UI_VERIFY = "UI_VERIFY"
+    BROWSER_QA_PLANNING = "BROWSER_QA_PLANNING"
+    BROWSER_QA_EXECUTION = "BROWSER_QA_EXECUTION"
+    FINAL_REVIEW = "FINAL_REVIEW"
     NEED_USER_DECISION = "NEED_USER_DECISION"
     WAITING_FOR_USER_APPROVAL = "WAITING_FOR_USER_APPROVAL"
     APPROVED_TO_COMMIT = "APPROVED_TO_COMMIT"
@@ -58,6 +60,7 @@ class TaskState(str, Enum):
     READY_TO_COMMIT = "READY_TO_COMMIT"
     COMMITTING = "COMMITTING"
     COMMITTED = "COMMITTED"
+    PUSHING = "PUSHING"
     PUSHED = "PUSHED"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
@@ -88,6 +91,7 @@ class VercelResult(BaseModel):
     status: str = "UNKNOWN"
     created_at: Optional[int] = None
     error_reason: Optional[str] = None
+    is_production: bool = False
 
 class BrowserQAStep(BaseModel):
     action: str
@@ -204,6 +208,12 @@ class Task(BaseModel):
     risk_level: RiskLevel = RiskLevel.GREEN
     designer_required: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    requested_by: str = "Anonymous"
+    priority: str = "NORMAL"
+    expected_branch: Optional[str] = None
+    requires_db: bool = False
+    requires_ui_qa: bool = False
+    allowed_mutation_paths: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 class LoadedDocument(BaseModel):
