@@ -1,0 +1,7 @@
+{
+  "tests": "PASS",
+  "build": "PASS",
+  "database": "NOT_RUN",
+  "preview": "NOT_RUN",
+  "ui": "NOT_RUN"
+}

@@ -1,0 +1,18 @@
+{
+  "status": "REVISE",
+  "summary": "The implementation compiles and the existing 99-test suite passes, but the new end-to-end task path cannot complete and has unsafe recovery behavior.",
+  "issues": [
+    "`automation/main.py:239` constructs `BrowserQAScenario` with unsupported `id` and omits required `scenario_id`, `name`, and `start_url`; `BrowserQAStep` at `:243` also passes unsupported `risk`. This raises Pydantic validation errors at Browser QA planning, leaves the task in `BROWSER_QA_PLANNING`, and stops the worker.",
+    "`automation/main.py:225-253` only reads a Vercel preview and never validates/uses its URL for QA. Browser QA therefore cannot target the preview even after fixing the invalid model construction.",
+    "`automation/supervisor.py` checks `TaskLockManager`, but neither supervisor nor worker acquires/releases its execution lock. Restarting the supervisor while a worker runs can misclassify it as crashed and overwrite its state."
+  ],
+  "evidence": [
+    "`python -m compileall automation` completed successfully.",
+    "`python -m unittest discover -s automation/tests -v` passed: 99 tests, 0 failures.",
+    "Static inspection confirms the Browser QA constructor arguments conflict with the Pydantic models in `automation/models.py`.",
+    "`git diff --check` reports trailing-whitespace errors in modified files."
+  ],
+  "next_instruction": "Fix Browser QA scenario generation using the declared schema and the verified preview URL; fail closed when preview/QA evidence is unavailable; acquire and release the task execution lock around worker execution; add focused orchestration tests for these paths. Remove trailing whitespace.",
+  "approval_question": "",
+  "risk_level": "YELLOW"
+}

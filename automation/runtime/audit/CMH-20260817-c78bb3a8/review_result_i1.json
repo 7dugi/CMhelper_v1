@@ -1,0 +1,12 @@
+{
+  "status": "PASS",
+  "summary": "Implementation review passed. No blocking correctness issues identified in the reviewed changes.",
+  "issues": [],
+  "evidence": [
+    "Working tree diff inspected across automation/control.py, automation/main.py, automation/runtime_state.py, and automation/supervisor.py.",
+    "Only non-blocking trailing-whitespace findings were reported by git diff --check."
+  ],
+  "next_instruction": "",
+  "approval_question": "",
+  "risk_level": "GREEN"
+}

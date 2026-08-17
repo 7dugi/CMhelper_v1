@@ -1,0 +1,2 @@
+{"timestamp": "2026-08-17T11:23:31.833203", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_STARTING", "task_id": "CMH-20260817-eadaac9d", "reason": "HTTP Error 403: Forbidden", "success": false}}
+{"timestamp": "2026-08-17T11:23:32.531646", "type": "TASK_STARTED", "details": {"task_id": "CMH-20260817-eadaac9d"}}

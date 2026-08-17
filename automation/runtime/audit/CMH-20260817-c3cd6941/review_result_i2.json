@@ -1,0 +1,20 @@
+{
+  "status": "REVISE",
+  "summary": "The workflow cannot reliably persist or resume approval-gated tasks, and it advances deployment/QA states without executing their required actions.",
+  "issues": [
+    "automation/main.py:216-239 changes state then breaks before runtime.save_state(), so COMMIT/PUSH approval requests and COMPLETED state are not persisted. Subsequent runs resume the old state and can issue duplicate approvals or commits.",
+    "automation/supervisor.py:160-169 has no handling for WAITING_FOR_USER_APPROVAL. This contradicts control.py's claim that the supervisor will resume after approval; approved tasks remain stalled unless main is manually launched.",
+    "automation/main.py:79-103 ignores a rejected latest approval when any earlier approval was approved. It can resume from an older approval action after a COMMIT or PUSH rejection.",
+    "automation/main.py:201-214 merely transitions through DB inspection, preview deployment, browser QA, and final review. VercelAdapter and BrowserAdapter are imported but never used, so tasks can be marked ready to commit without deployment or QA evidence.",
+    "automation/main.py:107-241 has no RESUMING branch. Supervisor can invoke the worker in RESUMING state, causing an infinite loop that repeatedly saves the unchanged state."
+  ],
+  "evidence": [
+    "python -m compileall -q automation completed successfully.",
+    "python -m unittest discover -s automation/tests -v passed: 99 tests.",
+    "The full pytest invocation failed during collection due to unrelated backend import-path errors and untracked write-script tests; it does not provide a clean repository-wide validation signal.",
+    "git diff --check reports trailing whitespace in modified automation files."
+  ],
+  "next_instruction": "Persist state before every break/return that changes it; make supervisor invoke the worker for approved waiting tasks; resolve only the latest approval outcome and honor rejection; execute and validate DB/deploy/browser stages conditionally with evidence; add a RESUMING transition handler and regression tests for each flow.",
+  "approval_question": "",
+  "risk_level": "RED"
+}

@@ -1,0 +1,46 @@
+{
+  "summary": "Add one concise, non-functional documentation note recording the final H7 clean end-to-end verification.",
+  "scope": [
+    "Locate the existing project documentation most appropriate for verification notes.",
+    "Add exactly one harmless note stating that the final H7 clean E2E verification was completed.",
+    "Review the diff to confirm no runtime, configuration, or test behavior changes."
+  ],
+  "out_of_scope": [
+    "Source-code changes",
+    "Configuration changes",
+    "Test-suite changes",
+    "External service or deployment actions"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "description": "Exactly one documentation note for final H7 clean E2E verification is added.",
+      "required": true,
+      "status": "NOT_RUN",
+      "evidence": null
+    },
+    {
+      "id": "AC-2",
+      "description": "The change is limited to documentation and has no functional impact.",
+      "required": true,
+      "status": "NOT_RUN",
+      "evidence": null
+    },
+    {
+      "id": "AC-3",
+      "description": "The final diff contains no unrelated changes.",
+      "required": true,
+      "status": "NOT_RUN",
+      "evidence": null
+    }
+  ],
+  "required_validations": [
+    "Inspect the final diff and confirm the only modification is the requested documentation note."
+  ],
+  "risk_level": "GREEN",
+  "designer_required": false,
+  "user_decision_required": false,
+  "allowed_mutation_paths": [
+    "Documentation file to be identified within the repository (for example, README.md or an existing verification/changelog document)"
+  ]
+}

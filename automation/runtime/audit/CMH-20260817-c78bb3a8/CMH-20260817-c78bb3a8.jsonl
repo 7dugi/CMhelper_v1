@@ -1,0 +1,5 @@
+{"timestamp": "2026-08-17T11:27:28.294678", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_STARTING", "task_id": "CMH-20260817-c78bb3a8", "reason": "HTTP Error 403: Forbidden", "success": false}}
+{"timestamp": "2026-08-17T11:27:29.210608", "type": "TASK_STARTED", "details": {"task_id": "CMH-20260817-c78bb3a8"}}
+{"timestamp": "2026-08-17T11:28:53.240584", "type": "DB_STAGE_SKIPPED", "details": {"reason": "No DB relevance found"}}
+{"timestamp": "2026-08-17T11:30:11.585173", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_WAITING_FOR_APPROVAL", "task_id": "CMH-20260817-c78bb3a8", "reason": "HTTP Error 403: Forbidden", "success": false}}
+{"timestamp": "2026-08-17T11:30:41.846078", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "APPROVAL_GRANTED", "task_id": "CMH-20260817-c78bb3a8", "reason": "HTTP Error 403: Forbidden", "success": false}}

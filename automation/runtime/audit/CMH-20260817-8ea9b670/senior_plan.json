@@ -1,0 +1,45 @@
+{
+  "summary": "Validate ONE SHOT connect behavior using only built-in file tools, without external services or plugins.",
+  "scope": [
+    "Inspect the workspace using built-in file tooling.",
+    "Identify an appropriate local validation target or test entry point.",
+    "Run safe, local verification available through built-in tools.",
+    "Report results without modifying files unless explicitly required."
+  ],
+  "out_of_scope": [
+    "Installing or using plugins.",
+    "Using network, browser, shell, or external integrations.",
+    "Publishing changes or modifying external systems."
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "description": "All work remains within the built-in file-tool boundary.",
+      "required": true,
+      "status": "NOT_RUN",
+      "evidence": null
+    },
+    {
+      "id": "AC-2",
+      "description": "ONE SHOT connect behavior is validated against available local artifacts.",
+      "required": true,
+      "status": "NOT_RUN",
+      "evidence": null
+    },
+    {
+      "id": "AC-3",
+      "description": "No files are changed unless a change is explicitly requested.",
+      "required": true,
+      "status": "NOT_RUN",
+      "evidence": null
+    }
+  ],
+  "required_validations": [
+    "Confirm only allowed tools are used.",
+    "Record the local validation outcome and any blocking missing artifacts."
+  ],
+  "risk_level": "GREEN",
+  "designer_required": false,
+  "user_decision_required": false,
+  "allowed_mutation_paths": []
+}

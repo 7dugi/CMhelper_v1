@@ -1,0 +1,20 @@
+{
+  "task_id": "CMH-20260817-c78bb3a8",
+  "task_title": "Synthetic Task 2",
+  "task_description": "Real Harness Run 2",
+  "state": "COMMITTING",
+  "provider": "",
+  "reason": "",
+  "detected_at": null,
+  "suggested_resume_at": null,
+  "resume_stage": "COMMITTING",
+  "blocking_approval_id": "20ff7573-59ad-4b59-bc34-127b014e92dc",
+  "blocking_approval_action": "COMMIT",
+  "iteration": 1,
+  "allowed_mutation_paths": [],
+  "last_successful_stage": "FINAL_REVIEW",
+  "quota_probe_attempts": 0,
+  "next_probe_at": null,
+  "commit_sha": null,
+  "push_policy": "APPROVE_COMMIT_ONLY"
+}

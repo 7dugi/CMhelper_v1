@@ -1,0 +1,16 @@
+{
+  "status": "REVISE",
+  "summary": "Approval-resume and permission-scope failures block safe task completion.",
+  "issues": [
+    "P1: Approved approvals never resume. control.py records the decision but leaves the task WAITING_FOR_USER_APPROVAL; supervisor.py has no branch that launches main for that state, so tasks remain stuck after approval.",
+    "P1: main.py ignores the False return from apply_scoped_permissions and continues to implementation even when scoped write permissions were not applied."
+  ],
+  "evidence": [
+    "python -m compileall -q automation passed.",
+    "python -m unittest discover -s automation/tests -v passed: 99 tests.",
+    "Supervisor only dispatches QUEUED, WAITING_FOR_QUOTA, RESUMING, and legacy APPROVED_TO_COMMIT states."
+  ],
+  "next_instruction": "Resume the worker when an approval decision is available (or transition state in control.py), and fail closed when scoped-permission setup fails. Add regression tests for both paths.",
+  "approval_question": "",
+  "risk_level": "RED"
+}

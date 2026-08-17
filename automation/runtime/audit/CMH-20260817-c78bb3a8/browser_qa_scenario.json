@@ -1,0 +1,18 @@
+{
+  "scenario_id": "QA-CMH-20260817-c78bb3a8",
+  "name": "Smoke test Vercel Preview",
+  "description": "Smoke test Vercel Preview",
+  "start_url": "https://cmhelper-v1-nq76x0upe-buythecar.vercel.app/",
+  "risk": "SAFE_READ",
+  "requires_auth": false,
+  "is_mobile": false,
+  "steps": [
+    {
+      "action": "goto",
+      "selector_or_target": "https://cmhelper-v1-nq76x0upe-buythecar.vercel.app/",
+      "expected": null,
+      "timeout": 5000,
+      "screenshot_after": true
+    }
+  ]
+}

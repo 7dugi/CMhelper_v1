@@ -1,0 +1,2 @@
+{"timestamp": "2026-08-17T11:17:20.483879", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "APPROVAL_GRANTED", "task_id": "TASK-RESUME-2", "reason": "HTTP Error 403: Forbidden", "success": false}}
+{"timestamp": "2026-08-17T11:28:28.205584", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "APPROVAL_GRANTED", "task_id": "TASK-RESUME-2", "reason": "HTTP Error 403: Forbidden", "success": false}}

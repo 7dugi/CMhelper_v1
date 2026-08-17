@@ -1,0 +1,2 @@
+{"timestamp": "2026-08-17T11:17:19.808806", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_WAITING_FOR_QUOTA", "task_id": "TASK-SAFE", "reason": "HTTP Error 403: Forbidden", "success": false}}
+{"timestamp": "2026-08-17T11:28:27.138900", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_WAITING_FOR_QUOTA", "task_id": "TASK-SAFE", "reason": "HTTP Error 403: Forbidden", "success": false}}

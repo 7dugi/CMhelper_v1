@@ -1,0 +1,44 @@
+{
+  "summary": "Plan a file-only Discord notification smoke test; live delivery cannot be verified without Discord/network access.",
+  "scope": [
+    "Inspect repository notification configuration and scripts.",
+    "Identify a safe local dry-run or fixture-based smoke-test path.",
+    "Validate message payload structure and expected success logging using built-in file tooling only."
+  ],
+  "out_of_scope": [
+    "Sending a real Discord notification.",
+    "Accessing Discord webhooks, APIs, or external services.",
+    "Changing repository files."
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "description": "Discord notification configuration or implementation path is identified from repository files.",
+      "required": true,
+      "status": "NOT_RUN",
+      "evidence": null
+    },
+    {
+      "id": "AC-2",
+      "description": "A local, non-network smoke-test mechanism or its absence is documented.",
+      "required": true,
+      "status": "NOT_RUN",
+      "evidence": null
+    },
+    {
+      "id": "AC-3",
+      "description": "No files are modified.",
+      "required": true,
+      "status": "PASS",
+      "evidence": null
+    }
+  ],
+  "required_validations": [
+    "Read-only inspection of notification-related configuration and scripts.",
+    "Run only repository-local, non-network validation if an existing safe command is available."
+  ],
+  "risk_level": "GREEN",
+  "designer_required": false,
+  "user_decision_required": false,
+  "allowed_mutation_paths": []
+}
