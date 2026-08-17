@@ -77,23 +77,67 @@ class SupabaseAccessMode(str, Enum):
     WRITE_PROPOSED = "WRITE_PROPOSED"
     WRITE_APPROVED = "WRITE_APPROVED"
 
+class VercelAccessMode(str, Enum):
+    READ_ONLY = "READ_ONLY"
+    PREVIEW_DEPLOY = "PREVIEW_DEPLOY"
+    PRODUCTION_DEPLOY = "PRODUCTION_DEPLOY"
+
+class VercelResult(BaseModel):
+    deployment_id: Optional[str] = None
+    url: Optional[str] = None
+    status: str = "UNKNOWN"
+    created_at: Optional[int] = None
+    error_reason: Optional[str] = None
+
+class BrowserQAStep(BaseModel):
+    action: str
+    selector_or_target: Optional[str] = None
+    expected: Optional[str] = None
+    timeout: int = 5000
+    screenshot_after: bool = False
+
+class BrowserQAScenario(BaseModel):
+    scenario_id: str
+    name: str
+    description: str
+    start_url: str
+    risk: str = "SAFE_READ" # SAFE_READ, SAFE_INTERACTION, MUTATING_INTERACTION
+    requires_auth: bool = False
+    is_mobile: bool = False
+    steps: List[BrowserQAStep] = Field(default_factory=list)
+
+class StepResult(BaseModel):
+    action: str
+    status: str
+    expected: Optional[str] = None
+    actual: Optional[str] = None
+    screenshot: Optional[str] = None
+    error: Optional[str] = None
+
+class BrowserQAResult(BaseModel):
+    scenario_id: str
+    status: str = "NOT_RUN"
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    steps: List[StepResult] = Field(default_factory=list)
+    screenshots: List[str] = Field(default_factory=list)
+    console_errors: List[str] = Field(default_factory=list)
+    network_errors: List[str] = Field(default_factory=list)
+    final_url: Optional[str] = None
+    warnings: List[str] = Field(default_factory=list)
+
 class FutureEvents:
     # Supabase Event Contract
     DB_INSPECTION_STARTED = "DB_INSPECTION_STARTED"
     DB_INSPECTION_COMPLETED = "DB_INSPECTION_COMPLETED"
-    DB_MIGRATION_PROPOSED = "DB_MIGRATION_PROPOSED"
-    DB_VALIDATION = "DB_VALIDATION"
+    DB_INSPECTION_FAILED = "DB_INSPECTION_FAILED"
     DB_WRITE_APPROVAL_REQUIRED = "DB_WRITE_APPROVAL_REQUIRED"
     DB_WRITE_APPROVED = "DB_WRITE_APPROVED"
     DB_WRITE_REJECTED = "DB_WRITE_REJECTED"
-    DB_MIGRATION_STARTED = "DB_MIGRATION_STARTED"
-    DB_MIGRATION_COMPLETED = "DB_MIGRATION_COMPLETED"
-    DB_MIGRATION_FAILED = "DB_MIGRATION_FAILED"
-    DB_VALIDATION_STARTED = "DB_VALIDATION_STARTED"
-    DB_VALIDATION_PASS = "DB_VALIDATION_PASS"
-    DB_VALIDATION_FAILED = "DB_VALIDATION_FAILED"
+    DB_WRITE_EXECUTED = "DB_WRITE_EXECUTED"
+    DB_WRITE_FAILED = "DB_WRITE_FAILED"
     
-    # Vercel Event Contract
+    # H6 Vercel & Browser QA Events
     DEPLOY_STARTED = "DEPLOY_STARTED"
     DEPLOY_COMPLETED = "DEPLOY_COMPLETED"
     DEPLOY_FAILED = "DEPLOY_FAILED"

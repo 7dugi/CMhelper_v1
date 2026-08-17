@@ -13,10 +13,18 @@ class SecretMasker:
 
     @classmethod
     def mask(cls, text: str) -> str:
+        import os
         if not text:
             return text
             
         masked_text = text
+        
+        # 1. Mask exact dynamic secrets first
+        bypass_secret = os.environ.get("VERCEL_AUTOMATION_BYPASS_SECRET")
+        if bypass_secret and bypass_secret in masked_text:
+            masked_text = masked_text.replace(bypass_secret, "***VERCEL_BYPASS_SECRET_MASKED***")
+            
+        # 2. Mask via patterns
         for pattern in cls.PATTERNS:
             def repl(match):
                 prefix = match.group(1)
