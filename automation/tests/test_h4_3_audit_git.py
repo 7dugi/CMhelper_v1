@@ -49,7 +49,7 @@ class TestH4_3_AuditAndGit(unittest.TestCase):
     @patch('urllib.request.urlopen')
     def test_discord_success(self, mock_urlopen):
         notifier = DiscordNotifier("http://fake.discord")
-        event = NotificationEvent(event_type="INFO", message="Test", task_id="t1")
+        event = NotificationEvent(event_type="INFO", message="Test", task_id="t1", send_to_discord=True)
         notifier.notify(event)
         mock_urlopen.assert_called_once()
 
@@ -58,16 +58,17 @@ class TestH4_3_AuditAndGit(unittest.TestCase):
     def test_discord_failure_fallback(self, mock_log_event, mock_urlopen):
         mock_urlopen.side_effect = Exception("Network Error")
         notifier = DiscordNotifier("http://fake.discord")
-        event = NotificationEvent(event_type="TEST_EVENT", message="Test", task_id="t1")
+        event = NotificationEvent(event_type="TEST_EVENT", message="Test", task_id="t1", send_to_discord=True)
         
         # It should not raise an exception
         notifier.notify(event)
         
-        # It should log AUDIT_DELIVERY_FAILED
-        mock_log_event.assert_called_with("AUDIT_DELIVERY_FAILED", {
+        # It should log DISCORD_NOTIFICATION_FAILED
+        mock_log_event.assert_called_with("DISCORD_NOTIFICATION_FAILED", {
+            "event_type": "TEST_EVENT",
+            "task_id": "t1",
             "reason": "Network Error",
-            "url": "***",
-            "original_event_type": "TEST_EVENT"
+            "success": False
         })
 
     def test_approval_idempotency_and_reject(self):

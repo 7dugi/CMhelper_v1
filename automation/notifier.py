@@ -21,6 +21,7 @@ class NotificationEvent(BaseModel):
     stage: Optional[str] = None
     iteration: Optional[int] = None
     details: Optional[Any] = None
+    send_to_discord: bool = False
 
 class Notifier(ABC):
     @abstractmethod
@@ -62,6 +63,9 @@ class DiscordNotifier(Notifier):
         if not self.webhook_url:
             return
             
+        if not event.send_to_discord:
+            return
+            
         if event.severity == NotificationSeverity.DEBUG:
             return
             
@@ -77,14 +81,46 @@ class DiscordNotifier(Notifier):
                 headers={'Content-Type': 'application/json'}
             )
             urllib.request.urlopen(req, timeout=5)
+            # Local Audit log of success
+            from .audit_logger import AuditLogger
+            audit = AuditLogger(event.task_id)
+            audit.log_event("DISCORD_NOTIFICATION_SENT", {
+                "event_type": event.event_type,
+                "task_id": event.task_id,
+                "success": True
+            })
         except Exception as e:
             # Fallback will be handled by Audit Logger capturing delivery failure
             from .audit_logger import AuditLogger
             audit = AuditLogger(event.task_id)
             masked_url = self._mask_url(self.webhook_url)
-            audit.log_event("AUDIT_DELIVERY_FAILED", {
+            audit.log_event("DISCORD_NOTIFICATION_FAILED", {
+                "event_type": event.event_type,
+                "task_id": event.task_id,
                 "reason": str(e),
-                "url": masked_url,
-                "original_event_type": event.event_type
+                "success": False
             })
             print(f"Failed to send Discord notification to {masked_url}: {e}")
+
+class NotificationDispatcher:
+    _instance = None
+    
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+        
+    def __init__(self):
+        self.notifiers = [ConsoleNotifier()]
+        import os
+        webhook = os.environ.get("DISCORD_WEBHOOK_URL")
+        if webhook:
+            self.notifiers.append(DiscordNotifier(webhook))
+            
+    def notify(self, event: NotificationEvent):
+        for n in self.notifiers:
+            n.notify(event)
+
+def dispatch_notification(event: NotificationEvent):
+    NotificationDispatcher.get_instance().notify(event)

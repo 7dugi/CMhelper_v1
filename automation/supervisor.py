@@ -11,7 +11,7 @@ from .task_lock import TaskLockManager
 from .quota_probe import ProviderHealthChecker
 from .provider_status import ProviderStatus
 from .models import TaskState
-from .notifier import ConsoleNotifier, NotificationEvent, NotificationSeverity
+from .notifier import NotificationEvent, NotificationSeverity, dispatch_notification
 
 from .git_executor import SafeGitExecutor
 
@@ -21,7 +21,6 @@ class Supervisor:
         self.runtime_mgr = RuntimeStateManager(root_dir)
         self.lock_mgr = TaskLockManager(root_dir)
         self.probe = ProviderHealthChecker()
-        self.notifier = ConsoleNotifier()
         self.git = SafeGitExecutor(root_dir)
 
     def _run_worker(self, task_id: str):
@@ -38,7 +37,7 @@ class Supervisor:
         if state.state in [TaskState.IMPLEMENTING, TaskState.REVIEWING, TaskState.PLANNING, TaskState.DESIGNING, TaskState.VALIDATING]:
             if not self.lock_mgr.is_locked():
                 # Process crashed
-                self.notifier.notify(NotificationEvent(
+                dispatch_notification(NotificationEvent(
                     event_type="CRASH_DETECTED",
                     message=f"Task {state.task_id} was left in {state.state.value} without active lock.",
                     task_id=state.task_id,
@@ -49,15 +48,16 @@ class Supervisor:
                 if state.last_successful_stage and state.resume_stage:
                     state.state = TaskState.RESUMING
                     self.runtime_mgr.save_state(state)
-                    self.notifier.notify(NotificationEvent(
+                    dispatch_notification(NotificationEvent(
                         event_type="RECOVERED",
                         message=f"Task {state.task_id} will be resumed from {state.resume_stage.value}.",
-                        task_id=state.task_id
+                        task_id=state.task_id,
+                        send_to_discord=True
                     ))
                 else:
                     state.state = TaskState.NEED_USER_DECISION
                     self.runtime_mgr.save_state(state)
-                    self.notifier.notify(NotificationEvent(
+                    dispatch_notification(NotificationEvent(
                         event_type="MANUAL_INTERVENTION_REQUIRED",
                         message=f"Task {state.task_id} cannot be automatically recovered.",
                         task_id=state.task_id,
@@ -69,7 +69,7 @@ class Supervisor:
                 # Already committed, maybe failed push or just crashed before state update
                 from .models import PushPolicy
                 if state.push_policy == PushPolicy.APPROVE_COMMIT_AND_PUSH:
-                    self.notifier.notify(NotificationEvent(
+                    dispatch_notification(NotificationEvent(
                         event_type="RECOVERED_PUSH",
                         message=f"Task {state.task_id} recovering from crash. Attempting push.",
                         task_id=state.task_id
@@ -78,7 +78,7 @@ class Supervisor:
                 else:
                     state.state = TaskState.COMMITTED
                     self.runtime_mgr.save_state(state)
-                    self.notifier.notify(NotificationEvent(
+                    dispatch_notification(NotificationEvent(
                         event_type="RECOVERED_COMMIT",
                         message=f"Task {state.task_id} recovering from crash. Commit was successful.",
                         task_id=state.task_id
@@ -87,7 +87,7 @@ class Supervisor:
     def _handle_quota_wait(self, state: RuntimeTaskState, now: datetime):
         if self.runtime_mgr.can_resume(now):
             # Do a probe
-            self.notifier.notify(NotificationEvent(
+            dispatch_notification(NotificationEvent(
                 event_type="QUOTA_PROBE",
                 message=f"Probing {state.provider} for quota availability.",
                 task_id=state.task_id
@@ -99,10 +99,11 @@ class Supervisor:
                 state.quota_probe_attempts = 0
                 state.next_probe_at = None
                 self.runtime_mgr.save_state(state)
-                self.notifier.notify(NotificationEvent(
+                dispatch_notification(NotificationEvent(
                     event_type="QUOTA_AVAILABLE",
                     message=f"Quota available for {state.provider}. Resuming.",
-                    task_id=state.task_id
+                    task_id=state.task_id,
+                    send_to_discord=True
                 ))
                 return True # Request run
             else:
@@ -114,7 +115,7 @@ class Supervisor:
                 
                 state.next_probe_at = now + timedelta(minutes=wait_min)
                 self.runtime_mgr.save_state(state)
-                self.notifier.notify(NotificationEvent(
+                dispatch_notification(NotificationEvent(
                     event_type="QUOTA_STILL_EXHAUSTED",
                     message=f"Quota probe failed. Next probe at {state.next_probe_at.isoformat()}.",
                     task_id=state.task_id
@@ -127,7 +128,7 @@ class Supervisor:
             # Try to dequeue
             new_state = self.runtime_mgr.dequeue_task()
             if new_state:
-                self.notifier.notify(NotificationEvent(
+                dispatch_notification(NotificationEvent(
                     event_type="TASK_DEQUEUED",
                     message=f"Dequeued task {new_state.task_id} ('{new_state.task_title}').",
                     task_id=new_state.task_id
@@ -150,10 +151,11 @@ class Supervisor:
         # 2. Process based on state
         if state.state == TaskState.QUEUED:
             if not self.lock_mgr.is_locked():
-                self.notifier.notify(NotificationEvent(
+                dispatch_notification(NotificationEvent(
                     event_type="TASK_STARTING",
                     message=f"Starting queued task {state.task_id}.",
-                    task_id=state.task_id
+                    task_id=state.task_id,
+                    send_to_discord=True
                 ))
                 self._run_worker(state.task_id)
 
@@ -182,7 +184,7 @@ class Supervisor:
                 allowed_paths = [] 
                 
                 if not state.commit_sha:
-                    self.notifier.notify(NotificationEvent(
+                    dispatch_notification(NotificationEvent(
                         event_type="COMMIT_STARTED",
                         message=f"Task {state.task_id} approved. Starting commit.",
                         task_id=state.task_id
@@ -193,7 +195,7 @@ class Supervisor:
                         state.commit_sha = sha
                         self.runtime_mgr.save_state(state)
                         
-                        self.notifier.notify(NotificationEvent(
+                        dispatch_notification(NotificationEvent(
                             event_type="COMMIT_COMPLETED",
                             message=f"Task {state.task_id} committed successfully.",
                             task_id=state.task_id,
@@ -202,7 +204,7 @@ class Supervisor:
                     except Exception as e:
                         state.state = TaskState.NEED_USER_DECISION
                         self.runtime_mgr.save_state(state)
-                        self.notifier.notify(NotificationEvent(
+                        dispatch_notification(NotificationEvent(
                             event_type="COMMIT_FAILED",
                             message=f"Task {state.task_id} failed to commit: {e}",
                             task_id=state.task_id,
@@ -212,7 +214,7 @@ class Supervisor:
                 
                 if state.commit_sha:
                     if state.push_policy == PushPolicy.APPROVE_COMMIT_AND_PUSH:
-                        self.notifier.notify(NotificationEvent(
+                        dispatch_notification(NotificationEvent(
                             event_type="PUSH_STARTED",
                             message=f"Task {state.task_id} starting push.",
                             task_id=state.task_id
@@ -222,7 +224,7 @@ class Supervisor:
                             # self.git.push("origin") 
                             state.state = TaskState.COMPLETED
                             self.runtime_mgr.save_state(state)
-                            self.notifier.notify(NotificationEvent(
+                            dispatch_notification(NotificationEvent(
                                 event_type="PUSH_COMPLETED",
                                 message=f"Task {state.task_id} pushed successfully.",
                                 task_id=state.task_id
@@ -230,7 +232,7 @@ class Supervisor:
                         except Exception as e:
                             state.state = TaskState.FAILED_STALLED
                             self.runtime_mgr.save_state(state)
-                            self.notifier.notify(NotificationEvent(
+                            dispatch_notification(NotificationEvent(
                                 event_type="PUSH_FAILED",
                                 message=f"Task {state.task_id} failed to push: {e}",
                                 task_id=state.task_id,
@@ -239,10 +241,11 @@ class Supervisor:
                     else:
                         state.state = TaskState.COMMITTED
                         self.runtime_mgr.save_state(state)
-                        self.notifier.notify(NotificationEvent(
+                        dispatch_notification(NotificationEvent(
                             event_type="TASK_COMPLETED",
                             message=f"Task {state.task_id} completed up to COMMIT.",
-                            task_id=state.task_id
+                            task_id=state.task_id,
+                            send_to_discord=True
                         ))
 
     def run(self):

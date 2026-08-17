@@ -6,6 +6,7 @@ from typing import Optional, List
 from enum import Enum
 from pydantic import BaseModel
 from .models import ApprovalAction
+from .notifier import NotificationEvent, NotificationSeverity, dispatch_notification
 
 class ApprovalStatus(str, Enum):
     PENDING = "PENDING"
@@ -96,6 +97,15 @@ class ApprovalManager:
             f.write(state.model_dump_json())
             
         self._save_index(task_id, approval_id)
+        
+        dispatch_notification(NotificationEvent(
+            event_type="TASK_WAITING_FOR_APPROVAL",
+            task_id=task_id,
+            message=f"Approval Required:\n- Approval ID: `{approval_id}`\n- Action: **{action}**\n- Reason: {reason}\nNext action: Review artifacts and provide approval.",
+            severity=NotificationSeverity.ACTION_REQUIRED,
+            send_to_discord=True
+        ))
+        
         return approval_id
 
     def get_approval(self, approval_id: str) -> Optional[ApprovalGateState]:

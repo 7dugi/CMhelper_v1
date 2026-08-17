@@ -5,6 +5,7 @@ from typing import Optional, List
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from .models import TaskState
+from .notifier import NotificationEvent, NotificationSeverity, dispatch_notification
 
 class RuntimeTaskState(BaseModel):
     task_id: str
@@ -75,6 +76,25 @@ class RuntimeStateManager:
 
 
     def save_state(self, state: RuntimeTaskState):
+        prev_state = self.load_state()
+        if prev_state and prev_state.state != state.state:
+            if state.state == TaskState.FAILED_STALLED:
+                dispatch_notification(NotificationEvent(
+                    event_type="TASK_FAILED_STALLED",
+                    task_id=state.task_id,
+                    message=f"Pipeline stalled due to failure.\nStage: {prev_state.state.value}\nReason: {state.reason or 'Unknown error'}",
+                    severity=NotificationSeverity.ERROR,
+                    send_to_discord=True
+                ))
+            elif state.state == TaskState.WAITING_FOR_QUOTA:
+                dispatch_notification(NotificationEvent(
+                    event_type="TASK_WAITING_FOR_QUOTA",
+                    task_id=state.task_id,
+                    message=f"Waiting for Quota.\nProvider: {state.provider}\nStage: {prev_state.state.value}\nAutomated retry scheduled.",
+                    severity=NotificationSeverity.INFO,
+                    send_to_discord=True
+                ))
+                
         temp_file = self.state_file.with_suffix('.json.tmp')
         try:
             with open(temp_file, 'w', encoding='utf-8') as f:
