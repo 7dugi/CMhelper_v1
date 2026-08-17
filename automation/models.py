@@ -65,14 +65,32 @@ class PushPolicy(str, Enum):
     APPROVE_COMMIT_ONLY = "APPROVE_COMMIT_ONLY"
     APPROVE_COMMIT_AND_PUSH = "APPROVE_COMMIT_AND_PUSH"
 
+class ApprovalAction(str, Enum):
+    COMMIT = "COMMIT"
+    PUSH = "PUSH"
+    DEPLOY = "DEPLOY"
+    DATABASE_WRITE = "DATABASE_WRITE"
+    DATABASE_DESTRUCTIVE_WRITE = "DATABASE_DESTRUCTIVE_WRITE"
+
+class SupabaseAccessMode(str, Enum):
+    READ_ONLY = "READ_ONLY"
+    WRITE_PROPOSED = "WRITE_PROPOSED"
+    WRITE_APPROVED = "WRITE_APPROVED"
+
 class FutureEvents:
     # Supabase Event Contract
-    DB_INSPECTION = "DB_INSPECTION"
+    DB_INSPECTION_STARTED = "DB_INSPECTION_STARTED"
+    DB_INSPECTION_COMPLETED = "DB_INSPECTION_COMPLETED"
     DB_MIGRATION_PROPOSED = "DB_MIGRATION_PROPOSED"
     DB_VALIDATION = "DB_VALIDATION"
     DB_WRITE_APPROVAL_REQUIRED = "DB_WRITE_APPROVAL_REQUIRED"
+    DB_WRITE_APPROVED = "DB_WRITE_APPROVED"
+    DB_WRITE_REJECTED = "DB_WRITE_REJECTED"
     DB_MIGRATION_STARTED = "DB_MIGRATION_STARTED"
     DB_MIGRATION_COMPLETED = "DB_MIGRATION_COMPLETED"
+    DB_MIGRATION_FAILED = "DB_MIGRATION_FAILED"
+    DB_VALIDATION_STARTED = "DB_VALIDATION_STARTED"
+    DB_VALIDATION_PASS = "DB_VALIDATION_PASS"
     DB_VALIDATION_FAILED = "DB_VALIDATION_FAILED"
     
     # Vercel Event Contract
@@ -88,6 +106,37 @@ class FutureEvents:
     SCREENSHOT_CAPTURED = "SCREENSHOT_CAPTURED"
     CONSOLE_ERROR = "CONSOLE_ERROR"
     NETWORK_ERROR = "NETWORK_ERROR"
+
+class DatabaseEvidence(BaseModel):
+    project_ref: str
+    connection_method: str
+    inspection_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    schemas: List[str] = Field(default_factory=list)
+    tables: List[str] = Field(default_factory=list)
+    columns: str = "UNKNOWN"
+    primary_keys: str = "UNKNOWN"
+    indexes: str = "UNKNOWN"
+    foreign_keys: str = "UNKNOWN"
+    rls_enabled_tables: str = "UNKNOWN"
+    policies: str = "UNKNOWN"
+    migration_state: str = "UNKNOWN"
+    warnings: List[str] = Field(default_factory=list)
+
+class DatabaseChangeProposal(BaseModel):
+    proposal_id: str
+    task_id: str
+    project_ref: str
+    description: str
+    risk: str # READ_ONLY, WRITE, DESTRUCTIVE
+    approval_action: str = "DATABASE_WRITE"
+    affected_objects: List[str] = Field(default_factory=list)
+    migration_sql_reference: str
+    sql_hash: str
+    rollback_strategy: Optional[str] = None
+    preconditions: List[str] = Field(default_factory=list)
+    post_validation: List[str] = Field(default_factory=list)
+    requires_approval: bool = True
+
 class EvidenceItem(BaseModel):
     name: str
     category: str

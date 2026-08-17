@@ -7,7 +7,8 @@ class SecretMasker:
         re.compile(r'(?i)(bearer\s+)([a-zA-Z0-9_\-\.]+)'),
         re.compile(r'(?i)(discord\.com/api/webhooks/\d+/)([a-zA-Z0-9_\-]+)'),
         re.compile(r'(?i)(password[\'"]?\s*[:=]\s*[\'"]?)([^&\'"\s]+)([\'"]?)'),
-        re.compile(r'(?i)(token[\'"]?\s*[:=]\s*[\'"]?)([^&\'"\s]+)([\'"]?)')
+        re.compile(r'(?i)(token[\'"]?\s*[:=]\s*[\'"]?)([^&\'"\s]+)([\'"]?)'),
+        re.compile(r'(?i)(postgres://[^:]+:)([^@]+)(@)')
     ]
 
     @classmethod

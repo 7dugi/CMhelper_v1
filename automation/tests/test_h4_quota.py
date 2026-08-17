@@ -98,7 +98,8 @@ class TestH4QuotaAndRemote(unittest.TestCase):
     def test_approval_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             manager = ApprovalManager(tmp)
-            state = manager.request_approval("t1", "COMMIT", "Need commit approval")
+            aid = manager.request_approval("t1", "COMMIT", "Need commit approval")
+            state = manager.get_approval(aid)
             self.assertEqual(state.status, ApprovalStatus.PENDING)
             
             self.assertEqual(manager.check_status("t1"), ApprovalStatus.PENDING)
