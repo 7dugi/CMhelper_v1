@@ -236,16 +236,30 @@ Return JSON ReviewResult (status: PASS, REVISE, FAILED_STALLED)."""
     finally:
         # 9. Cleanup
         cleanup_success = permission_manager.restore_permissions()
+        if 'lock_mgr' in locals():
+            lock_mgr.release(task_id)
         audit.save_json("permission_cleanup.json", {"success": cleanup_success})
         if not cleanup_success:
             print("FAIL: Permission cleanup failed.")
             sys.exit(1)
 
-    orchestrator.sm.transition(TaskState.READY_TO_COMMIT)
+    # H4-2: Request Approval
+    approval_mgr = ApprovalManager(PROJECT_ROOT)
+    approval_mgr.request_approval(task_id, action="COMMIT_AND_PUSH", reason="Task implementation and review passed.")
+    
+    orchestrator.sm.transition(TaskState.WAITING_FOR_USER_APPROVAL)
+    runtime.save_state(RuntimeTaskState(task_id=task_id, state=TaskState.WAITING_FOR_USER_APPROVAL))
+    notifier.notify(NotificationEvent(
+        event_type="READY_FOR_APPROVAL", 
+        message="Task is READY_TO_COMMIT. Waiting for user approval.", 
+        task_id=task_id,
+        severity=NotificationSeverity.ACTION_REQUIRED
+    ))
+
     git_after = executor.capture_repo_snapshot()
     audit.save_text("git_after.json", json.dumps({"snapshot": git_after}))
 
-    final_report = f"""# H3-INTEGRATED-001 Complete
+    final_report = f"""# H3-INTEGRATED-001 Complete (H4-1 Quota-Aware mode)
 State: {orchestrator.sm.current_state.value}
 Mutation Guard: PASS
 Permission Cleanup: PASS

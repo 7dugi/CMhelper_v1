@@ -105,3 +105,11 @@ class Orchestrator:
             self.sm.transition(TaskState.READY_TO_COMMIT)
             return True
         return False
+
+    def handle_quota_exhausted(self):
+        self.sm.transition(TaskState.WAITING_FOR_QUOTA)
+
+    def resume_from_quota(self, resume_stage: TaskState):
+        if self.sm.current_state == TaskState.WAITING_FOR_QUOTA:
+            self.sm.transition(TaskState.RESUMING)
+            self.sm.transition(resume_stage)

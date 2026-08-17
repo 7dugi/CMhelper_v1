@@ -5,18 +5,18 @@ from typing import Dict, Any
 
 from .config import PROJECT_ROOT
 
+from .secret_masker import SecretMasker
+
 class AuditLogger:
     def __init__(self, task_id: str):
         self.task_id = task_id
-        self.report_dir = os.path.join(PROJECT_ROOT, "automation", "reports", task_id)
+        # H4-3: Local Audit is Source of Truth in runtime/audit
+        self.report_dir = os.path.join(PROJECT_ROOT, "automation", "runtime", "audit", task_id)
         os.makedirs(self.report_dir, exist_ok=True)
-        self.events_file = os.path.join(self.report_dir, "events.jsonl")
+        self.events_file = os.path.join(self.report_dir, f"{task_id}.jsonl")
 
     def _mask_secrets(self, data: str) -> str:
-        # Simple mask helper
-        masked = data.replace("VERCEL_TOKEN=", "VERCEL_TOKEN=***")
-        masked = masked.replace("DISCORD_WEBHOOK_URL=", "DISCORD_WEBHOOK_URL=***")
-        return masked
+        return SecretMasker.mask(data)
 
     def log_event(self, event_type: str, details: Dict[str, Any]):
         event = {
