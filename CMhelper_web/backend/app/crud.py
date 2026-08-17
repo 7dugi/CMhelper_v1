@@ -498,10 +498,10 @@ def list_contracts(db: Session, company_id: int, customer_id: Optional[int] = No
 def get_contract(db: Session, contract_id: int) -> Optional[models.Contract]:
     return db.query(models.Contract).filter(models.Contract.id == contract_id).first()
 
-def create_contract(db: Session, data: schemas.ContractCreate, company_id: int, assigned_user_id: int) -> models.Contract:
+def _build_contract_row(data: schemas.ContractBase, company_id: int, customer_id: int, assigned_user_id: int) -> models.Contract:
     row = models.Contract(
         company_id=company_id,
-        customer_id=data.customer_id,
+        customer_id=customer_id,
         assigned_user_id=assigned_user_id,
         vehicle_model=data.vehicle_model,
         product_type=data.product_type,
@@ -514,8 +514,13 @@ def create_contract(db: Session, data: schemas.ContractCreate, company_id: int, 
         supplies_work=data.supplies_work,
         estimate_image=data.estimate_image,
         status=data.status,
-        memo=data.memo
+        memo=data.memo,
+        monthly_payment=data.monthly_payment
     )
+    return row
+
+def create_contract(db: Session, data: schemas.ContractCreate, company_id: int, assigned_user_id: int) -> models.Contract:
+    row = _build_contract_row(data, company_id, data.customer_id, assigned_user_id)
     db.add(row)
     db.commit()
     db.refresh(row)

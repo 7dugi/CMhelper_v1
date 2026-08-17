@@ -1,7 +1,7 @@
 import datetime
 import uuid
 import enum
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON, text, BigInteger, Numeric
+from sqlalchemy import Column, UniqueConstraint, Integer, String, Boolean, DateTime, ForeignKey, JSON, text, BigInteger, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -126,6 +126,10 @@ class Contract(Base):
     """Customer's financial/vehicle contract."""
     __tablename__ = "contracts"
 
+    __table_args__ = (
+        UniqueConstraint('source_opportunity_id', name='uq_contracts_source_opportunity_id'),
+    )
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
     customer_id = Column(Integer, ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False)
@@ -145,6 +149,10 @@ class Contract(Base):
     status = Column(String, default="ACTIVE", server_default=text("'ACTIVE'"), nullable=False)
     memo = Column(String, nullable=True)
     legacy_origin_customer_id = Column(Integer, unique=True, nullable=True)
+
+    source_opportunity_id = Column(Integer, ForeignKey("opportunities.id", ondelete="SET NULL"), index=True, nullable=True)
+    source_quote_id = Column(Integer, ForeignKey("quotes.id", ondelete="SET NULL"), index=True, nullable=True)
+    monthly_payment = Column(BigInteger, nullable=True)
 
     created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow,

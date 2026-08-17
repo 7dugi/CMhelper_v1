@@ -174,6 +174,7 @@ class ContractBase(BaseModel):
     estimate_image:   Optional[str] = None
     status:           Optional[Literal["ACTIVE", "COMPLETED", "CANCELLED"]] = "ACTIVE"
     memo:             Optional[str] = None
+    monthly_payment:  Optional[int] = None
 
     @field_validator("contract_date", "expiry_date")
     @classmethod
@@ -245,9 +246,15 @@ class ContractOut(ContractBase):
     assigned_user_id: int
     assigned_user_name: Optional[str] = None
     legacy_origin_customer_id: Optional[int] = None
+    source_opportunity_id: Optional[int] = None
+    source_quote_id: Optional[int] = None
     created_at:       datetime
     updated_at:       datetime
     model_config = {"from_attributes": True}
+
+class OpportunityContractConversionCreate(ContractBase):
+    source_quote_id: Optional[int] = None
+    assigned_user_id: Optional[int] = None
 
 
 # ── Opportunity ──────────────────────────────────────────────────────────

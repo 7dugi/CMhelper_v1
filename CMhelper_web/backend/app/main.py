@@ -30,6 +30,8 @@ def run_migrations(eng) -> None:
             existing_fd = {row[1] for row in result.fetchall()}
             result = conn.execute(text("PRAGMA table_info(message_tasks)"))
             existing_mt = {row[1] for row in result.fetchall()}
+            result = conn.execute(text("PRAGMA table_info(contracts)"))
+            existing_contracts = {row[1] for row in result.fetchall()}
         else:
             # PostgreSQL
             result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='customers'"))
@@ -38,6 +40,8 @@ def run_migrations(eng) -> None:
             existing_fd = {row[0] for row in result.fetchall()}
             result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='message_tasks'"))
             existing_mt = {row[0] for row in result.fetchall()}
+            result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='contracts'"))
+            existing_contracts = {row[0] for row in result.fetchall()}
 
         # Customers table
         cust_cols = [
@@ -78,6 +82,21 @@ def run_migrations(eng) -> None:
             if col_name not in existing_mt:
                 ctype = sqlite_type if dialect == "sqlite" else pg_type
                 conn.execute(text(f"ALTER TABLE message_tasks ADD COLUMN {col_name} {ctype}"))
+
+        # Contracts table
+        contract_cols = [
+            ("source_opportunity_id", "INTEGER", "INTEGER"),
+            ("source_quote_id", "INTEGER", "INTEGER"),
+            ("monthly_payment", "BIGINT", "BIGINT"),
+        ]
+        for col_name, sqlite_type, pg_type in contract_cols:
+            if col_name not in existing_contracts:
+                ctype = sqlite_type if dialect == "sqlite" else pg_type
+                conn.execute(text(f"ALTER TABLE contracts ADD COLUMN {col_name} {ctype}"))
+                
+        # Idempotent index creation
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_contracts_source_opportunity_id ON contracts(source_opportunity_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_contracts_source_quote_id ON contracts(source_quote_id)"))
 
 
 # ── App ────────────────────────────────────────────────────────────────────────
@@ -605,6 +624,61 @@ def api_delete_opportunity(opportunity_id: int, db: Session = Depends(get_db), c
     opp = crud.get_opportunity(db, opportunity_id)
     _check_opportunity_ownership(opp, current_user)
     raise HTTPException(status_code=409, detail="Opportunities cannot be hard deleted.")
+
+
+from sqlalchemy.exc import IntegrityError
+
+@app.post("/api/opportunities/{opportunity_id}/convert-to-contract", response_model=schemas.ContractOut, status_code=201)
+def api_convert_opportunity_to_contract(
+    opportunity_id: int, 
+    data: schemas.OpportunityContractConversionCreate, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    opp = crud.get_opportunity(db, opportunity_id)
+    if not opp:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+    if opp.company_id != current_user.company_id:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+        
+    _check_opportunity_ownership(opp, current_user)
+    
+    if opp.status != "WON":
+        raise HTTPException(status_code=400, detail="Opportunity is not WON")
+        
+    # Check application level duplication
+    existing = db.query(models.Contract).filter(models.Contract.source_opportunity_id == opportunity_id).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Opportunity already converted")
+        
+    if data.source_quote_id:
+        quote = crud.get_quote(db, data.source_quote_id)
+        if not quote or quote.opportunity_id != opportunity_id or quote.company_id != current_user.company_id:
+            raise HTTPException(status_code=404, detail="Quote not found or not related to this Opportunity")
+            
+    assigned_user_id = current_user.id if current_user.role == models.UserRole.USER.value else (data.assigned_user_id or opp.assigned_user_id)
+    
+    if current_user.role != models.UserRole.USER.value:
+        target_user = crud.get_user_by_id(db, assigned_user_id)
+        if not target_user or target_user.company_id != current_user.company_id or target_user.status != models.UserStatus.ACTIVE.value:
+            raise HTTPException(status_code=400, detail="Invalid assigned_user_id.")
+
+    row = crud._build_contract_row(data, opp.company_id, opp.customer_id, assigned_user_id)
+    row.source_opportunity_id = opportunity_id
+    row.source_quote_id = data.source_quote_id
+    
+    db.add(row)
+    try:
+        db.commit()
+        db.refresh(row)
+    except IntegrityError as e:
+        db.rollback()
+        err_msg = str(e.orig) if e.orig else str(e)
+        if "UNIQUE" in err_msg.upper() and ("source_opportunity_id" in err_msg.lower() or "uq_contracts_source_opportunity" in err_msg.lower()):
+            raise HTTPException(status_code=409, detail="Opportunity already converted")
+        raise
+        
+    return row
 
 
 # ── Quotes ────────────────────────────────────────────────────────────────
