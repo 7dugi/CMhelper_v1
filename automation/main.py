@@ -74,31 +74,6 @@ def main():
     codex = CodexAdapter()
     agy = AntigravityAdapter()
 
-    if state.state == TaskState.WAITING_FOR_USER_APPROVAL:
-        apps = approval_mgr.get_task_approvals(task_id)
-        pending = [a for a in apps if a.status.value == "PENDING"]
-        if pending:
-            print("Still waiting for approvals:", [a.approval_id for a in pending])
-            return
-        
-        approved = [a for a in apps if a.status.value == "APPROVED"]
-        if not approved:
-            print("No approvals found. Task rejected.")
-            state.state = TaskState.REJECTED_BY_USER
-            runtime.save_state(state)
-            return
-            
-        latest_action = sorted(approved, key=lambda x: x.decided_at, reverse=True)[0].action
-        if latest_action == ApprovalAction.DATABASE_WRITE.value:
-            state.state = TaskState.PREVIEW_DEPLOY
-        elif latest_action == ApprovalAction.COMMIT.value:
-            state.state = TaskState.COMMITTING
-        elif latest_action == ApprovalAction.PUSH.value:
-            state.state = TaskState.PUSHING
-        else:
-            state.state = TaskState.PREVIEW_DEPLOY
-            
-        runtime.save_state(state)
 
     while state.state not in [
         TaskState.WAITING_FOR_USER_APPROVAL,
@@ -336,6 +311,9 @@ def main():
         elif state.state == TaskState.READY_TO_COMMIT:
             approval_id = approval_mgr.request_approval(task_id, ApprovalAction.COMMIT.value, "Final Review Passed")
             print(f"Requested COMMIT approval: {approval_id}")
+            state.blocking_approval_id = approval_id
+            state.blocking_approval_action = ApprovalAction.COMMIT.value
+            state.resume_stage = TaskState.COMMITTING
             state.state = TaskState.WAITING_FOR_USER_APPROVAL
             runtime.save_state(state)
             break
@@ -348,6 +326,9 @@ def main():
                 state.commit_sha = sha
                 approval_id = approval_mgr.request_approval(task_id, ApprovalAction.PUSH.value, "Commit successful, request push")
                 print(f"Requested PUSH approval: {approval_id}")
+                state.blocking_approval_id = approval_id
+                state.blocking_approval_action = ApprovalAction.PUSH.value
+                state.resume_stage = TaskState.PUSHING
                 state.state = TaskState.WAITING_FOR_USER_APPROVAL
             except Exception as e:
                 print(f"Commit failed: {e}")

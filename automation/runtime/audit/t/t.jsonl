@@ -1,7 +1,0 @@
-{"timestamp": "2026-08-17T10:35:22.350370", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_WAITING_FOR_APPROVAL", "task_id": "t", "reason": "HTTP Error 403: Forbidden", "success": false}}
-{"timestamp": "2026-08-17T10:36:34.478570", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_WAITING_FOR_APPROVAL", "task_id": "t", "reason": "HTTP Error 403: Forbidden", "success": false}}
-{"timestamp": "2026-08-17T10:37:04.197450", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_WAITING_FOR_APPROVAL", "task_id": "t", "reason": "HTTP Error 403: Forbidden", "success": false}}
-{"timestamp": "2026-08-17T10:57:37.775089", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_WAITING_FOR_APPROVAL", "task_id": "t", "reason": "HTTP Error 403: Forbidden", "success": false}}
-{"timestamp": "2026-08-17T11:16:47.919335", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_WAITING_FOR_APPROVAL", "task_id": "t", "reason": "HTTP Error 403: Forbidden", "success": false}}
-{"timestamp": "2026-08-17T11:17:12.689718", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_WAITING_FOR_APPROVAL", "task_id": "t", "reason": "HTTP Error 403: Forbidden", "success": false}}
-{"timestamp": "2026-08-17T11:28:20.571212", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_WAITING_FOR_APPROVAL", "task_id": "t", "reason": "HTTP Error 403: Forbidden", "success": false}}

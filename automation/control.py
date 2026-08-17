@@ -21,10 +21,12 @@ def get_parser():
     status_p.add_argument("task_id", help="Task ID")
     
     approve_p = subparsers.add_parser("approve", help="Approve a pending action")
-    approve_p.add_argument("identifier", help="Task ID or Approval ID")
+    approve_p.add_argument("task_id", help="Task ID")
+    approve_p.add_argument("approval_id", help="Approval ID")
     
     reject_p = subparsers.add_parser("reject", help="Reject a pending action")
-    reject_p.add_argument("identifier", help="Task ID or Approval ID")
+    reject_p.add_argument("task_id", help="Task ID")
+    reject_p.add_argument("approval_id", help="Approval ID")
 
     pause_p = subparsers.add_parser("pause", help="Pause a task")
     pause_p.add_argument("task_id", help="Task ID")
@@ -75,15 +77,26 @@ def main():
     elif args.command == "status":
         state = runtime_mgr.load_state()
         if state and state.task_id == args.task_id:
-            print(f"Task: {state.task_id}")
+            print(f"Task ID: {state.task_id}")
+            print(f"Description: {state.task_description}")
             print(f"State: {state.state.value}")
-            print(f"Provider: {state.provider}")
-            print(f"Last successful stage: {state.last_successful_stage.value if state.last_successful_stage else 'None'}")
+            print(f"Current Stage: {state.state.value}")
+            print(f"Last Successful Stage: {state.last_successful_stage.value if state.last_successful_stage else 'None'}")
+            print(f"Iteration: {state.iteration}")
+            
+            print(f"Quota Status: Provider: {state.provider or 'None'}, Waiting: {'Yes' if state.state == TaskState.WAITING_FOR_QUOTA else 'No'}, Next probe: {state.next_probe_at.isoformat() if state.next_probe_at else 'None'}")
+            print(f"Last Error: {state.reason if state.reason else 'None'}")
+            
+            if state.blocking_approval_id:
+                print(f"Blocking Approval ID: {state.blocking_approval_id}")
+                print(f"Blocking Approval Action: {state.blocking_approval_action}")
         else:
             # Check if queued
             queued = [q for q in runtime_mgr.get_queued_tasks() if q.task_id == args.task_id]
             if queued:
-                print(f"Task: {queued[0].task_id}")
+                q = queued[0]
+                print(f"Task ID: {q.task_id}")
+                print(f"Description: {q.task_description}")
                 print(f"State: QUEUED")
             else:
                 print(f"Task {args.task_id} not found in active or queue.")
@@ -92,27 +105,37 @@ def main():
         if apps:
             print("\n--- Approvals ---")
             for app in apps:
-                print(f"[{app.approval_id}] Action: {app.action} | Status: {app.status.value}")
+                print(f"[{app.approval_id}] Action: {app.action} | Status: {app.status.value} | Created: {app.requested_at.isoformat()} | Expiry: {app.expires_at.isoformat()}")
             
     elif args.command == "approve":
         state = runtime_mgr.load_state()
-        success = approval_mgr.decide(args.identifier, approved=True)
+        # Verify approval_id belongs to task_id
+        apps = approval_mgr.get_task_approvals(args.task_id)
+        app = next((a for a in apps if a.approval_id == args.approval_id), None)
+        if not app:
+            print(f"Error: Approval ID '{args.approval_id}' not found for Task ID '{args.task_id}'.")
+            sys.exit(1)
+            
+        success = approval_mgr.decide(args.approval_id, approved=True)
         if success:
-            print(f"Approval '{args.identifier}' granted.")
-            # We don't automatically transition state here. Supervisor will handle the transition
-            # once it detects the approval is APPROVED.
-            # But for backward compatibility with H4 where WAITING_FOR_USER_APPROVAL was a single state:
-            if state and state.state == TaskState.WAITING_FOR_USER_APPROVAL:
+            print(f"Approval '{args.approval_id}' granted for task '{args.task_id}'.")
+            if state and state.state == TaskState.WAITING_FOR_USER_APPROVAL and state.blocking_approval_id == args.approval_id:
                 print("Task is currently waiting for user approval. Supervisor will resume it shortly.")
         else:
-            print(f"Failed to approve '{args.identifier}'. Make sure it is PENDING.")
+            print(f"Failed to approve '{args.approval_id}'. Make sure it is PENDING.")
             
     elif args.command == "reject":
-        success = approval_mgr.decide(args.identifier, approved=False)
+        apps = approval_mgr.get_task_approvals(args.task_id)
+        app = next((a for a in apps if a.approval_id == args.approval_id), None)
+        if not app:
+            print(f"Error: Approval ID '{args.approval_id}' not found for Task ID '{args.task_id}'.")
+            sys.exit(1)
+            
+        success = approval_mgr.decide(args.approval_id, approved=False)
         if success:
-            print(f"Approval '{args.identifier}' rejected.")
+            print(f"Approval '{args.approval_id}' rejected for task '{args.task_id}'.")
         else:
-            print(f"Failed to reject '{args.identifier}'. Make sure it is PENDING.")
+            print(f"Failed to reject '{args.approval_id}'. Make sure it is PENDING.")
 
     elif args.command == "pause":
         state = runtime_mgr.load_state()

@@ -1,4 +1,0 @@
-{"timestamp": "2026-08-17T11:17:19.946081", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_WAITING_FOR_APPROVAL", "task_id": "TASK-RESUME-1", "reason": "HTTP Error 403: Forbidden", "success": false}}
-{"timestamp": "2026-08-17T11:17:20.156918", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "APPROVAL_GRANTED", "task_id": "TASK-RESUME-1", "reason": "HTTP Error 403: Forbidden", "success": false}}
-{"timestamp": "2026-08-17T11:28:27.320850", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "TASK_WAITING_FOR_APPROVAL", "task_id": "TASK-RESUME-1", "reason": "HTTP Error 403: Forbidden", "success": false}}
-{"timestamp": "2026-08-17T11:28:27.602359", "type": "DISCORD_NOTIFICATION_FAILED", "details": {"event_type": "APPROVAL_GRANTED", "task_id": "TASK-RESUME-1", "reason": "HTTP Error 403: Forbidden", "success": false}}

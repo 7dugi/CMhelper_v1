@@ -17,6 +17,8 @@ class RuntimeTaskState(BaseModel):
     detected_at: Optional[datetime] = None
     suggested_resume_at: Optional[datetime] = None
     resume_stage: Optional[TaskState] = None
+    blocking_approval_id: Optional[str] = None
+    blocking_approval_action: Optional[str] = None
     iteration: int = 1
     allowed_mutation_paths: List[str] = Field(default_factory=list)
     last_successful_stage: Optional[TaskState] = None

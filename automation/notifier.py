@@ -75,10 +75,18 @@ class DiscordNotifier(Notifier):
         }
         
         try:
+            # Disable proxy to avoid 403 or name resolution errors if the user's environment is misconfigured
+            proxy_handler = urllib.request.ProxyHandler({})
+            opener = urllib.request.build_opener(proxy_handler)
+            urllib.request.install_opener(opener)
+
             req = urllib.request.Request(
                 self.webhook_url, 
                 data=json.dumps(payload).encode('utf-8'),
-                headers={'Content-Type': 'application/json'}
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'CMhelper-Automated-Testing/1.0'
+                }
             )
             urllib.request.urlopen(req, timeout=5)
             # Local Audit log of success

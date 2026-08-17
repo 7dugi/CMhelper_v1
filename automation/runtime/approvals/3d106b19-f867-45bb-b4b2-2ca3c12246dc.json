@@ -1,1 +1,0 @@
-{"approval_id":"3d106b19-f867-45bb-b4b2-2ca3c12246dc","task_id":"CMH-20260817-a5dd45f4","action":"COMMIT","status":"REJECTED","requested_at":"2026-08-17T09:44:54.437585Z","expires_at":"2026-08-18T09:44:54.437585Z","decided_at":"2026-08-17T10:39:06.359535Z","reason":"Final Review Passed","decision_source":"CLI","decision_note":"","approved_sql_hash":null}
