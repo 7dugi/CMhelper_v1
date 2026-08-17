@@ -109,3 +109,23 @@ AI Agent는 신규 기능을 개발할 때 다음 원칙을 준수한다.
 - 직접 main commit 금지
 - Pull Request 후 Merge
 - 기능 브랜치 내용은 CURRENT_STATUS에서 [PLANNED] 또는 [FEATURE BRANCH ONLY] 로 명확히 구분
+
+## Codex Project Instructions (Operating Layer)
+
+Codex는 이 프로젝트를 분석할 때 다음 운영 규칙(Operating Layer)을 엄수해야 합니다.
+
+1. **새 Session은 Bootstrap 먼저:** 새 채팅(Session)이 시작되면 가장 먼저 `python -m automation.control bootstrap --project cmhelper`를 실행하여 현재 Git, Queue 상태 및 Freshness를 확인하라.
+2. **과거 Chat 기억을 Source of Truth로 사용 금지:** 이전에 나눈 대화 기록에 의존하여 프로젝트 상태를 유추하지 마라. 항상 Git 상태와 프로젝트 문서(Context Bundle)를 기반으로 판단하라.
+3. **DISCUSSION / SPEC / EXECUTE 구분:** 사용자의 요청 의도에 따라 모드를 명확히 분리하라.
+   - **DISCUSSION:** 설계 논의, 대안 제시 (코드/문서 수정, Task 생성 금지)
+   - **SPEC:** 구현 지시서 작성, 테스트/제약사항 정의 (Harness 실행 금지)
+   - **EXECUTE:** 명시적 사용자 실행 의도가 있을 때만 Harness(`python -m automation.control create --file ...`)에 Task 등록.
+4. **EXECUTE 진입 시 제약사항:**
+   - 반드시 명시적 사용자 실행 요청이 있어야 한다. (단순 동의로 실행하지 말 것)
+   - 실행 전 **Context Freshness Gate**를 확인하라. `FRESH` 상태가 아니면(`STALE`, `CONFLICT` 등) 실행을 차단하고 사용자에게 문서 업데이트를 요청하라.
+   - 사용자 승인 전 Business Code를 직접 수정하지 마라.
+5. **Commit / Push Approval Gate 준수:** 모든 Harness 작업은 사용자 승인을 대기하는 과정을 거친다.
+6. **Secret 보호:** 어떠한 경우에도 환경변수 등 민감한 인증 정보를 출력하거나 저장하지 마라.
+7. **ProjectConfig 기반 동작:** 프로젝트의 모든 행동은 `ProjectConfig`의 규칙에 따른다.
+8. **Runtime Artifact Commit 금지:** 어떠한 경우에도 `automation/runtime`, `screenshots`, `reports` 등 동적으로 생성되는 런타임 결과물이나 상태 파일을 Git에 Commit하지 마라.
+9. **새 프로젝트 적용:** 이 규칙은 향후 추가되는 다른 프로젝트(`project_b` 등)에도 동일하게 적용된다.

@@ -44,7 +44,13 @@ def get_parser():
     
     next_p = subparsers.add_parser("next", help="Resolve the next task")
     next_p.add_argument("--project", help="Project ID", required=True)
-    next_p.add_argument("--create", action="store_true", help="Create the task if READY and HIGH confidence")
+    next_p.add_argument("--create", action="store_true", help="Create a harness task if result is READY and HIGH confidence")
+    
+    bootstrap_p = subparsers.add_parser("bootstrap", help="Bootstrap a session with project knowledge and harness reality")
+    bootstrap_p.add_argument("--project", "-p", required=True, help="Project ID")
+    
+    freshness_p = subparsers.add_parser("freshness", help="Check context freshness gate")
+    freshness_p.add_argument("--project", "-p", required=True, help="Project ID")
     
     return parser
 
@@ -337,6 +343,14 @@ def main():
             
         if args.create:
             if res.result == "READY" and res.candidate and res.candidate.confidence == "HIGH":
+                from .operating_layer import ProjectOperatingLayer
+                op_layer = ProjectOperatingLayer(root_dir)
+                freshness = op_layer.check_freshness(project)
+                
+                if freshness.value != "FRESH":
+                    print(f"\nTask not created: Context is {freshness.value}. Please review and update project docs.")
+                    sys.exit(0)
+                    
                 c = res.candidate
                 description = c.description
                 req_hash = compute_hash(project_id + description)
@@ -360,6 +374,29 @@ def main():
                 print(f"\nTask created\nTask ID: {task_id}")
             else:
                 print("\nTask not created (Result is not READY with HIGH confidence, or candidate missing).")
+
+    elif args.command == "bootstrap":
+        project_id = args.project
+        project = registry.get_project(project_id)
+        if not project:
+            print(f"Error: Project '{project_id}' not found in registry.")
+            sys.exit(1)
+            
+        from .operating_layer import ProjectOperatingLayer
+        op_layer = ProjectOperatingLayer(root_dir)
+        print(op_layer.bootstrap(project))
+
+    elif args.command == "freshness":
+        project_id = args.project
+        project = registry.get_project(project_id)
+        if not project:
+            print(f"Error: Project '{project_id}' not found in registry.")
+            sys.exit(1)
+            
+        from .operating_layer import ProjectOperatingLayer
+        op_layer = ProjectOperatingLayer(root_dir)
+        state = op_layer.check_freshness(project)
+        print(f"Freshness: {state.value}")
 
 if __name__ == "__main__":
     main()

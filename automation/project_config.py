@@ -8,6 +8,13 @@ class OptionalServiceConfig(BaseModel):
     enabled: bool = False
     config: Dict[str, Any] = Field(default_factory=dict)
 
+class OperatingLayerConfig(BaseModel):
+    context_sources: List[str] = Field(default_factory=list)
+    status_sources: List[str] = Field(default_factory=list)
+    rule_sources: List[str] = Field(default_factory=list)
+    harness_docs: List[str] = Field(default_factory=list)
+    freshness_sources: List[str] = Field(default_factory=list)
+
 class ProjectConfig(BaseModel):
     project_id: str
     project_name: str
@@ -25,6 +32,8 @@ class ProjectConfig(BaseModel):
     vercel: OptionalServiceConfig = Field(default_factory=OptionalServiceConfig)
     browser_qa: OptionalServiceConfig = Field(default_factory=OptionalServiceConfig)
     
+    operating_layer: OperatingLayerConfig = Field(default_factory=OperatingLayerConfig)
+
     test_commands: List[str] = Field(default_factory=list)
     build_commands: List[str] = Field(default_factory=list)
     

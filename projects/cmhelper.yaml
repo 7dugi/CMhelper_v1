@@ -12,6 +12,24 @@ roadmap_path: "docs/ROADMAP.md"
 current_status_path: "docs/CURRENT_STATUS.md"
 todo_path: "docs/TODO.md"
 
+operating_layer:
+  context_sources:
+    - "docs/PROJECT_OVERVIEW.md"
+  status_sources:
+    - "docs/CURRENT_STATUS.md"
+    - "docs/ROADMAP.md"
+    - "docs/TODO.md"
+  rule_sources:
+    - ".agents/AGENTS.md"
+    - "docs/DEVELOPMENT_GATE.md"
+    - "docs/TECHNICAL_PRINCIPLES.md"
+  harness_docs:
+    - "docs/AUTOMATION_USER_GUIDE.md"
+    - "docs/PROJECT_ONBOARDING.md"
+  freshness_sources:
+    - "docs/CURRENT_STATUS.md"
+    - "docs/ROADMAP.md"
+
 supabase:
   enabled: true
   config:
