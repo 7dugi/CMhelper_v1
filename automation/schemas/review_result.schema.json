@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["PASS", "REVISE", "NEED_USER_DECISION", "FAILED_STALLED"],
+      "description": "Verdict of the review."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Review summary and rationale."
+    },
+    "issues": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of issues found, if any."
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of verification evidence found in the results."
+    },
+    "next_instruction": {
+      "type": "string",
+      "description": "Instructions for the implementer if status is REVISE."
+    },
+    "approval_question": {
+      "type": "string",
+      "description": "Question for the user if status is NEED_USER_DECISION."
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": ["GREEN", "YELLOW", "RED"]
+    }
+  },
+  "required": ["status", "summary", "issues", "evidence", "next_instruction", "approval_question", "risk_level"],
+  "additionalProperties": false
+}

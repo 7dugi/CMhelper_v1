@@ -41,3 +41,6 @@ uploads/
 build/
 logs/
 *.log
+automation/reports/*
+!automation/reports/.gitkeep
+automation/mock_bin/

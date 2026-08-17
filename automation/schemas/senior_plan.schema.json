@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "High-level summary of the task and approach."
+    },
+    "scope": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of explicit steps or boundaries included in the task."
+    },
+    "out_of_scope": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of items explicitly excluded from the task."
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "required": { "type": "boolean" },
+          "status": { "type": "string", "enum": ["PASS", "FAIL", "NOT_REQUIRED", "NOT_RUN"] }
+        },
+        "required": ["id", "description", "required", "status"],
+        "additionalProperties": false
+      }
+    },
+    "required_validations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": ["GREEN", "YELLOW", "RED"],
+      "description": "GREEN for read-only/safe, YELLOW for normal changes, RED for breaking/architecture changes."
+    },
+    "designer_required": {
+      "type": "boolean"
+    },
+    "user_decision_required": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "summary", 
+    "scope", 
+    "out_of_scope", 
+    "acceptance_criteria", 
+    "required_validations", 
+    "risk_level", 
+    "designer_required", 
+    "user_decision_required"
+  ],
+  "additionalProperties": false
+}

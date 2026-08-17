@@ -8,7 +8,8 @@ class AntigravityAdapter(BaseAdapter):
             executable="agy",
             args=[
                 "--add-dir", PROJECT_ROOT,
-                "--print", prompt
+                "--print",
+                prompt
             ],
             cwd=PROJECT_ROOT,
             safe_mode=True

@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 
 class ReviewStatus(str, Enum):
@@ -83,6 +83,9 @@ class TaskContext(BaseModel):
     task_specific_documents: List[str] = Field(default_factory=list)
     loaded_documents: Dict[str, LoadedDocument] = Field(default_factory=dict)
 
+from pydantic import BaseModel, Field, field_validator
+import re
+
 class SeniorPlan(BaseModel):
     summary: str
     scope: List[str]
@@ -93,21 +96,29 @@ class SeniorPlan(BaseModel):
     designer_required: bool
     user_decision_required: bool
 
+    @field_validator('required_validations')
+    def validate_no_shell_commands(cls, v):
+        forbidden = r'\b(git|rg|pytest|npm|ripgrep|curl|wget)\b'
+        for val in v:
+            if re.search(forbidden, val, re.IGNORECASE):
+                raise ValueError(f"Shell commands are not allowed in required_validations. Found forbidden pattern in: {val}")
+        return v
+
 class ImplementationResult(BaseModel):
     summary: str
     changed_files: List[str] = Field(default_factory=list)
-    tests: str = ""
-    build: str = ""
-    db_impact: str = ""
-    ui_impact: str = ""
-    issues: List[str] = Field(default_factory=list)
-    user_decision_required: bool = False
+    tests: Any = ""
+    build: Any = ""
+    db_impact: Any = ""
+    ui_impact: Any = ""
+    issues: List[Any] = Field(default_factory=list)
+    user_decision_required: Optional[bool] = False
 
 class ReviewResult(BaseModel):
     status: ReviewStatus
     summary: str
     issues: List[str] = Field(default_factory=list)
-    evidence: List[EvidenceItem] = Field(default_factory=list)
+    evidence: List[str] = Field(default_factory=list)
     next_instruction: str = ""
     approval_question: str = ""
     risk_level: RiskLevel = RiskLevel.GREEN
