@@ -1,0 +1,5 @@
+# Operational E2E Acceptance
+status: accepted
+documentation_only: true
+marker: OPERATIONAL_E2E_ACCEPTANCE_OK
+updated_at: 2026-08-18T12:20:45+09:00
