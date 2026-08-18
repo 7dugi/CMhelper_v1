@@ -11,3 +11,6 @@ PyJWT>=2.8.0
 bcrypt
 python-dotenv
 discord.py>=2.4.0
+PyYAML
+psutil
+playwright
