@@ -1,10 +1,17 @@
 import json
 import urllib.request
+import urllib.error
+import urllib.parse
+import os
+import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Optional, Any
+from dotenv import load_dotenv
 from .secret_masker import SecretMasker
+
+load_dotenv()
 
 class NotificationSeverity:
     DEBUG = "DEBUG"
@@ -76,21 +83,76 @@ class DiscordNotifier(Notifier):
             "content": f"**[{event.severity}] {event.event_type}**\n{project_str}Task: `{event.task_id}`\n{masked_msg}"
         }
         
+        if isinstance(event.details, dict) and "approval_id" in event.details:
+            app_id = event.details["approval_id"]
+            components = [{
+                "type": 1,
+                "components": [
+                    {
+                        "type": 2,
+                        "label": "Approve",
+                        "style": 3,
+                        "custom_id": f"approve_{event.task_id}_{app_id}"
+                    },
+                    {
+                        "type": 2,
+                        "label": "Reject",
+                        "style": 4,
+                        "custom_id": f"reject_{event.task_id}_{app_id}"
+                    }
+                ]
+            }]
+            payload["components"] = components
+        
+        bot_token = os.environ.get("DISCORD_BOT_TOKEN")
+        channel_id = os.environ.get("DISCORD_CHANNEL_ID")
+        
         try:
-            # Disable proxy to avoid 403 or name resolution errors if the user's environment is misconfigured
             proxy_handler = urllib.request.ProxyHandler({})
             opener = urllib.request.build_opener(proxy_handler)
             urllib.request.install_opener(opener)
 
-            req = urllib.request.Request(
-                self.webhook_url, 
-                data=json.dumps(payload).encode('utf-8'),
-                headers={
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'CMhelper-Automated-Testing/1.0'
-                }
-            )
-            urllib.request.urlopen(req, timeout=5)
+            if bot_token and channel_id:
+                # Use Bot REST API to send message so components work
+                url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
+                req = urllib.request.Request(
+                    url, 
+                    data=json.dumps(payload).encode('utf-8'),
+                    headers={
+                        'Content-Type': 'application/json',
+                        'Authorization': f'Bot {bot_token}',
+                        'User-Agent': 'CMhelper-Automated-Testing/1.0'
+                    }
+                )
+            else:
+                # Fallback to standard webhook
+                req = urllib.request.Request(
+                    self.webhook_url, 
+                    data=json.dumps(payload).encode('utf-8'),
+                    headers={
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'CMhelper-Automated-Testing/1.0'
+                    }
+                )
+
+            try:
+                urllib.request.urlopen(req, timeout=5)
+            except urllib.error.HTTPError as he:
+                if he.code == 400 and "components" in payload:
+                    print("Webhook might not be app-owned (400 Bad Request). Falling back to message without components.")
+                    del payload["components"]
+                    req = urllib.request.Request(
+                        self.webhook_url, 
+                        data=json.dumps(payload).encode('utf-8'),
+                        headers={
+                            'Content-Type': 'application/json',
+                            'User-Agent': 'CMhelper-Automated-Testing/1.0'
+                        }
+                    )
+                    urllib.request.urlopen(req, timeout=5)
+                else:
+                    raise he
+            
             # Local Audit log of success
             from .audit_logger import AuditLogger
             audit = AuditLogger(event.task_id)
@@ -103,7 +165,7 @@ class DiscordNotifier(Notifier):
             # Fallback will be handled by Audit Logger capturing delivery failure
             from .audit_logger import AuditLogger
             audit = AuditLogger(event.task_id)
-            masked_url = self._mask_url(self.webhook_url)
+            masked_url = self._mask_url(self.webhook_url) if self.webhook_url else "BOT_API"
             audit.log_event("DISCORD_NOTIFICATION_FAILED", {
                 "event_type": event.event_type,
                 "task_id": event.task_id,

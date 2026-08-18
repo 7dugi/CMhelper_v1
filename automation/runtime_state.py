@@ -98,6 +98,14 @@ class RuntimeStateManager:
                     severity=NotificationSeverity.INFO,
                     send_to_discord=True
                 ))
+            elif state.state == TaskState.NEED_USER_DECISION and (not prev_state or prev_state.state != TaskState.NEED_USER_DECISION):
+                dispatch_notification(NotificationEvent(
+                    event_type="TASK_NEEDS_USER_DECISION",
+                    task_id=state.task_id,
+                    message=f"Task needs user decision.\nTask: {state.task_title}\nStage: {prev_state.state.value if prev_state else 'Unknown'}\nReason: {state.reason or 'Decision required by review or failure.'}\nPlease review logs and take action via CLI.",
+                    severity=NotificationSeverity.ACTION_REQUIRED,
+                    send_to_discord=True
+                ))
                 
         temp_file = self.state_file.with_suffix('.json.tmp')
         try:

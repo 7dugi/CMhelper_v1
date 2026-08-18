@@ -98,12 +98,25 @@ class ApprovalManager:
             
         self._save_index(task_id, approval_id)
         
+        message = f"Approval Required:\n- Approval ID: `{approval_id}`\n- Action: **{action}**\n- Reason: {reason}\nNext action: Review artifacts and provide approval."
+        
+        try:
+            from .runtime_state import RuntimeStateManager
+            from .discord_formatter import build_enhanced_approval_message
+            rsm = RuntimeStateManager(self.root_dir)
+            task_state = rsm.load_state()
+            if task_state and task_state.task_id == task_id:
+                message = build_enhanced_approval_message(task_state, approval_id, action, reason)
+        except Exception as e:
+            print(f"Failed to build enhanced message: {e}")
+        
         dispatch_notification(NotificationEvent(
             event_type="TASK_WAITING_FOR_APPROVAL",
             task_id=task_id,
-            message=f"Approval Required:\n- Approval ID: `{approval_id}`\n- Action: **{action}**\n- Reason: {reason}\nNext action: Review artifacts and provide approval.",
+            message=message,
             severity=NotificationSeverity.ACTION_REQUIRED,
-            send_to_discord=True
+            send_to_discord=True,
+            details={"approval_id": approval_id, "action": action}
         ))
         
         return approval_id

@@ -58,10 +58,11 @@ class Supervisor:
                     self.runtime_mgr.save_state(state)
                     dispatch_notification(NotificationEvent(
                         event_type="MANUAL_INTERVENTION_REQUIRED",
-                        message=f"Task {state.task_id} cannot be automatically recovered.",
+                        message=f"Task {state.task_id} cannot be automatically recovered. Manual intervention is required.",
                         task_id=state.task_id,
                         project_id=state.project_id,
-                        severity=NotificationSeverity.ACTION_REQUIRED
+                        severity=NotificationSeverity.ACTION_REQUIRED,
+                        send_to_discord=True
                     ))
 
     def _handle_quota_wait(self, state: RuntimeTaskState, now: datetime):
@@ -181,6 +182,12 @@ class Supervisor:
         print("Supervisor started. Checking provider health...")
         self.health_checker.check_all()
         
+        # Start Discord Bot
+        bot_process = None
+        if os.environ.get("DISCORD_BOT_TOKEN"):
+            print("Starting Discord Approval Bot...")
+            bot_process = subprocess.Popen([sys.executable, "-m", "automation.discord_bot"], cwd=self.root_dir)
+        
         try:
             while True:
                 try:
@@ -193,6 +200,8 @@ class Supervisor:
                     print(f"Supervisor error: {e}")
                     time.sleep(SUPERVISOR_POLL_SECONDS)
         finally:
+            if bot_process:
+                bot_process.terminate()
             sup_lock.release()
 
 if __name__ == "__main__":

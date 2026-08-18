@@ -92,7 +92,8 @@ def main():
         TaskState.WAITING_FOR_QUOTA,
         TaskState.FAILED_STALLED,
         TaskState.REJECTED_BY_USER,
-        TaskState.COMPLETED
+        TaskState.COMPLETED,
+        TaskState.NEED_USER_DECISION
     ]:
         print(f"\n--- Executing Stage: {state.state.value} ---")
         
@@ -190,6 +191,14 @@ def main():
                 print(f"Review Parsing failed: {str(e)}")
                 state.state = TaskState.FAILED_STALLED
                 
+        elif state.state == TaskState.RESUMING:
+            print("\n--- Executing Stage: RESUMING ---")
+            if state.resume_stage:
+                state.state = state.resume_stage
+            else:
+                print("Error: resume_stage is None. Falling back to FAILED_STALLED to prevent unsafe resume.")
+                state.state = TaskState.FAILED_STALLED
+
         elif state.state == TaskState.DB_INSPECTION:
             print("Running DB Inspection...")
             changed = executor.capture_changed_files()

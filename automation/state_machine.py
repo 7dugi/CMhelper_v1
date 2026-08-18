@@ -25,7 +25,7 @@ TRANSITIONS: Dict[TaskState, List[TaskState]] = {
     TaskState.APPROVED_TO_COMMIT: [TaskState.COMMITTING, TaskState.COMMITTED],
     TaskState.REJECTED_BY_USER: [TaskState.IDLE, TaskState.FAILED_STALLED, TaskState.NEED_USER_DECISION],
     TaskState.WAITING_FOR_QUOTA: [TaskState.RESUMING, TaskState.FAILED_STALLED, TaskState.PAUSED],
-    TaskState.RESUMING: [TaskState.PLANNING, TaskState.DESIGNING, TaskState.IMPLEMENTING, TaskState.REVIEWING, TaskState.PAUSED],
+    TaskState.RESUMING: [TaskState.PLANNING, TaskState.DESIGNING, TaskState.IMPLEMENTING, TaskState.REVIEWING, TaskState.FAILED_STALLED, TaskState.PAUSED, TaskState.COMMITTING, TaskState.PUSHING],
     TaskState.PAUSED: [TaskState.RESUMING, TaskState.FAILED_STALLED],
     TaskState.COMMITTING: [TaskState.WAITING_FOR_USER_APPROVAL, TaskState.COMPLETED, TaskState.FAILED],
     TaskState.COMMITTED: [TaskState.PUSHED, TaskState.PUSHING],
