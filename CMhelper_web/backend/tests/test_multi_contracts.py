@@ -7,21 +7,15 @@ os.environ["CMHELPER_DEFAULT_COMPANY_SLUG"] = "test-company"
 
 import pytest
 from fastapi.testclient import TestClient
-from app.main import app
+from app.main import app, run_migrations
 from app.database import Base, get_db
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.models import User, Company, Customer, Contract
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_multi_contracts.db"
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+engine = None
+TestingSessionLocal = None
 
 def override_get_db():
     try:
@@ -31,19 +25,31 @@ def override_get_db():
         db.close()
 
 @pytest.fixture(scope="module")
-def db_session():
+def db_session(tmp_path_factory):
+    """Use an isolated, writable database owned by pytest for this module."""
+    global engine, TestingSessionLocal
+    database_path = tmp_path_factory.mktemp("multi_contracts") / "test_multi_contracts.db"
+    engine = create_engine(
+        f"sqlite:///{database_path.as_posix()}",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base.metadata.create_all(bind=engine)
+    run_migrations(engine)
     db = TestingSessionLocal()
     yield db
     db.close()
     Base.metadata.drop_all(bind=engine)
+    if engine is not None:
+        engine.dispose()
 
 @pytest.fixture(scope="module")
-def client():
+def client(db_session):
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
-    app.dependency_overrides.clear()
+    app.dependency_overrides.pop(get_db, None)
 
 @pytest.fixture(scope="module")
 def setup_data(db_session):

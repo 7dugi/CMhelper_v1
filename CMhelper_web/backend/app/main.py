@@ -93,10 +93,34 @@ def run_migrations(eng) -> None:
             if col_name not in existing_contracts:
                 ctype = sqlite_type if dialect == "sqlite" else pg_type
                 conn.execute(text(f"ALTER TABLE contracts ADD COLUMN {col_name} {ctype}"))
-                
-        # Idempotent index creation
-        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_contracts_source_opportunity_id ON contracts(source_opportunity_id)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_contracts_source_quote_id ON contracts(source_quote_id)"))
+
+        if dialect == "sqlite":
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_contracts_source_opportunity_id ON contracts(source_opportunity_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_contracts_source_quote_id ON contracts(source_quote_id)"))
+        else:
+            # PostgreSQL: check constraints before adding
+            result = conn.execute(text("SELECT constraint_name FROM information_schema.table_constraints WHERE table_name='contracts'"))
+            existing_constraints = {row[0] for row in result.fetchall()}
+
+            if "fk_contracts_source_opportunity_id" not in existing_constraints:
+                conn.execute(text(
+                    "ALTER TABLE contracts ADD CONSTRAINT fk_contracts_source_opportunity_id "
+                    "FOREIGN KEY (source_opportunity_id) REFERENCES opportunities(id) ON DELETE SET NULL"
+                ))
+
+            if "fk_contracts_source_quote_id" not in existing_constraints:
+                conn.execute(text(
+                    "ALTER TABLE contracts ADD CONSTRAINT fk_contracts_source_quote_id "
+                    "FOREIGN KEY (source_quote_id) REFERENCES quotes(id) ON DELETE SET NULL"
+                ))
+
+            if "uq_contracts_source_opportunity_id" not in existing_constraints:
+                conn.execute(text(
+                    "ALTER TABLE contracts ADD CONSTRAINT uq_contracts_source_opportunity_id "
+                    "UNIQUE (source_opportunity_id)"
+                ))
+
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_contracts_source_quote_id ON contracts(source_quote_id)"))
 
 
 # ── App ────────────────────────────────────────────────────────────────────────
@@ -673,10 +697,25 @@ def api_convert_opportunity_to_contract(
         db.refresh(row)
     except IntegrityError as e:
         db.rollback()
-        err_msg = str(e.orig) if e.orig else str(e)
-        if "UNIQUE" in err_msg.upper() and ("source_opportunity_id" in err_msg.lower() or "uq_contracts_source_opportunity" in err_msg.lower()):
+        orig = getattr(e, "orig", None)
+        constraint_name = None
+        if orig is not None:
+            diag = getattr(orig, "diag", None)
+            if diag is not None:
+                constraint_name = getattr(diag, "constraint_name", None)
+            if not constraint_name:
+                constraint_name = getattr(orig, "constraint_name", None)
+
+        if constraint_name:
+            if constraint_name == "uq_contracts_source_opportunity_id":
+                raise HTTPException(status_code=409, detail="Opportunity already converted")
+            raise HTTPException(status_code=400, detail="Database integrity constraint violation")
+
+        err_msg = str(orig) if orig is not None else str(e)
+        if "uq_contracts_source_opportunity_id" in err_msg or ("UNIQUE constraint failed:" in err_msg and "contracts.source_opportunity_id" in err_msg):
             raise HTTPException(status_code=409, detail="Opportunity already converted")
-        raise
+
+        raise HTTPException(status_code=400, detail="Database integrity constraint violation")
         
     return row
 

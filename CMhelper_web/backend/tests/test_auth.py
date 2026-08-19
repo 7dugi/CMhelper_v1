@@ -12,7 +12,7 @@ os.environ["CMHELPER_OWNER_EMAIL"] = "owner@test.com"
 os.environ["CMHELPER_DEFAULT_COMPANY_NAME"] = "Test Company"
 os.environ["CMHELPER_DEFAULT_COMPANY_SLUG"] = "test-company"
 
-from app.main import app
+from app.main import app, run_migrations
 from app.database import Base, get_db
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -36,9 +36,10 @@ client = TestClient(app)
 def setup_db():
     app.dependency_overrides[get_db] = override_get_db
     Base.metadata.create_all(bind=engine)
+    run_migrations(engine)
     yield
     Base.metadata.drop_all(bind=engine)
-    app.dependency_overrides.clear()
+    app.dependency_overrides.pop(get_db, None)
 
 def test_register_success():
     res = client.post("/api/auth/register", json={
@@ -84,10 +85,13 @@ def test_login_success():
         "invite_code": "TEST-INVITE"
     })
     user_id = res_reg.json()["id"]
-    db = next(override_get_db())
-    from app.models import User
-    db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
-    db.commit()
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+        db.commit()
+    finally:
+        db.close()
 
     res = client.post("/api/auth/login", json={
         "email": "LOGIN@test.com", # Test lowercase normalization
@@ -122,10 +126,13 @@ def test_auth_me():
         "invite_code": "TEST-INVITE"
     })
     user_id = res_reg.json()["id"]
-    db = next(override_get_db())
-    from app.models import User
-    db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
-    db.commit()
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+        db.commit()
+    finally:
+        db.close()
 
     login_res = client.post("/api/auth/login", json={
         "email": "me@test.com",
@@ -233,10 +240,13 @@ def test_auth_me_inactive_user():
     })
     user_id = res_reg.json()["id"]
     
-    db = next(override_get_db())
-    from app.models import User
-    db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
-    db.commit()
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+        db.commit()
+    finally:
+        db.close()
 
     # login to get token
     res_login = client.post("/api/auth/login", json={
@@ -246,11 +256,14 @@ def test_auth_me_inactive_user():
     token = res_login.json()["access_token"]
     
     # manually deactivate user
-    db = next(override_get_db())
-    from app.models import User
-    user = db.query(User).filter_by(id=user_id).first()
-    user.status = "INACTIVE"
-    db.commit()
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        user = db.query(User).filter_by(id=user_id).first()
+        user.status = "INACTIVE"
+        db.commit()
+    finally:
+        db.close()
     
     # token should now fail
     res_me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
@@ -266,10 +279,13 @@ def test_auth_me_inactive_company():
     })
     user_id = res_reg.json()["id"]
     
-    db = next(override_get_db())
-    from app.models import User
-    db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
-    db.commit()
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+        db.commit()
+    finally:
+        db.close()
 
     res_login = client.post("/api/auth/login", json={
         "email": "inactive_co@test.com",
@@ -278,20 +294,27 @@ def test_auth_me_inactive_company():
     token = res_login.json()["access_token"]
     
     # manually deactivate company
-    db = next(override_get_db())
-    from app.models import User, Company
-    user = db.query(User).filter_by(id=user_id).first()
-    company = db.query(Company).filter_by(id=user.company_id).first()
-    company.status = "INACTIVE"
-    db.commit()
+    db = TestingSessionLocal()
+    try:
+        from app.models import User, Company
+        user = db.query(User).filter_by(id=user_id).first()
+        company = db.query(Company).filter_by(id=user.company_id).first()
+        company.status = "INACTIVE"
+        db.commit()
+    finally:
+        db.close()
     
     res_me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert res_me.status_code == 403
 
 def test_default_company_creation():
-    db = next(override_get_db())
-    from app.models import Company
-    count_before = db.query(Company).count()
+    db = TestingSessionLocal()
+    try:
+        from app.models import Company
+        count_before = db.query(Company).count()
+    finally:
+        db.close()
+
     client.post("/api/auth/register", json={
         "name": "Company User 1",
         "email": "co1@test.com",
@@ -299,7 +322,12 @@ def test_default_company_creation():
         "password_confirm": "password123",
         "invite_code": "TEST-INVITE"
     })
-    count_after_first = db.query(Company).count()
+    db = TestingSessionLocal()
+    try:
+        from app.models import Company
+        count_after_first = db.query(Company).count()
+    finally:
+        db.close()
     
     client.post("/api/auth/register", json={
         "name": "Company User 2",
@@ -308,29 +336,39 @@ def test_default_company_creation():
         "password_confirm": "password123",
         "invite_code": "TEST-INVITE"
     })
-    count_after_second = db.query(Company).count()
+    db = TestingSessionLocal()
+    try:
+        from app.models import Company
+        count_after_second = db.query(Company).count()
+    finally:
+        db.close()
     
     # Only 1 new company should be created, and the second user should reuse it
     assert count_after_first == count_before + 1
     assert count_after_second == count_after_first
 
 def test_missing_env_vars_fail_fast():
-    import importlib
-    import os
-    import app.main
-    from unittest.mock import patch
+    import subprocess
+    import sys
     
-    with patch("dotenv.load_dotenv"):
-        # Remove a required env var
-        original = os.environ.get("JWT_SECRET_KEY")
-        del os.environ["JWT_SECRET_KEY"]
-        try:
-            with pytest.raises(RuntimeError) as exc_info:
-                importlib.reload(app.main)
-            assert "Fail-Fast" in str(exc_info.value)
-        finally:
-            os.environ["JWT_SECRET_KEY"] = original
-            importlib.reload(app.main) # restore
+    env = os.environ.copy()
+    env.pop("JWT_SECRET_KEY", None)
+    cmd = [
+        sys.executable,
+        "-c",
+        "import os; os.environ.pop('JWT_SECRET_KEY', None); import app.main"
+    ]
+    result = subprocess.run(
+        cmd,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    )
+    assert result.returncode != 0
+    assert "Fail-Fast" in result.stderr or "RuntimeError" in result.stderr
 
 def test_password_confirm_not_in_db():
     res = client.post("/api/auth/register", json={
@@ -341,10 +379,13 @@ def test_password_confirm_not_in_db():
         "invite_code": "TEST-INVITE"
     })
     user_id = res.json()["id"]
-    db = next(override_get_db())
-    from app.models import User
-    user = db.query(User).filter_by(id=user_id).first()
-    assert not hasattr(user, "password_confirm")
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        user = db.query(User).filter_by(id=user_id).first()
+        assert not hasattr(user, "password_confirm")
+    finally:
+        db.close()
 
 def test_jwt_expiry_120_minutes():
     res_reg = client.post("/api/auth/register", json={
@@ -355,10 +396,13 @@ def test_jwt_expiry_120_minutes():
         "invite_code": "TEST-INVITE"
     })
     user_id = res_reg.json()["id"]
-    db = next(override_get_db())
-    from app.models import User
-    db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
-    db.commit()
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+        db.commit()
+    finally:
+        db.close()
 
     res_login = client.post("/api/auth/login", json={
         "email": "jwt@test.com",
