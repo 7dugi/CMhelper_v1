@@ -12,7 +12,18 @@ async function req(path, opts = {}) {
   const res = await fetch(`${API}${path}`, opts);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    let msg = `HTTP ${res.status}`;
+    if (typeof err.detail === 'string') {
+      msg = `${err.detail} (${res.status})`;
+    } else if (Array.isArray(err.detail)) {
+      msg = `${err.detail.map(d => d.msg || JSON.stringify(d)).join(', ')} (${res.status})`;
+    } else if (err.detail) {
+      msg = `${JSON.stringify(err.detail)} (${res.status})`;
+    }
+    const error = new Error(msg);
+    error.status = res.status;
+    error.detail = err.detail;
+    throw error;
   }
   return res.json();
 }
@@ -69,7 +80,7 @@ export const uploadFile = (file) => {
 };
 
 // Message Tasks
-export const queueMessages = (tasks) => 
+export const queueMessages = (tasks) =>
   req('/messages/queue', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(tasks) });
 export const getMessageHistory = (limit=200) => req(`/messages/history?limit=${limit}`);
 
@@ -77,6 +88,7 @@ export const getMessageHistory = (limit=200) => req(`/messages/history?limit=${l
 export const getCustomerOpportunities = (customerId) => req(`/customers/${customerId}/opportunities`);
 export const createOpportunity        = (body) => req('/opportunities', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
 export const updateOpportunity        = (id, body) => req(`/opportunities/${id}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+export const convertOpportunityToContract = (opportunityId, body) => req(`/opportunities/${opportunityId}/convert-to-contract`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
 
 export const getOpportunityQuotes     = (opportunityId) => req(`/opportunities/${opportunityId}/quotes`);
 export const createQuote              = (body) => req('/quotes', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });

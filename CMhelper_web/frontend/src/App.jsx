@@ -11,7 +11,7 @@ import * as api from './api';
 import MessageSender from './MessageSender';
 import AuthScreen from './auth/AuthScreen';
 import UserManagement from './UserManagement';
-import OpportunitySection from './components/opportunities/OpportunityModule';
+import OpportunitySection, { PRODUCT_TYPE_LABELS } from './components/opportunities/OpportunityModule';
 
 /* ─── constants ─────────────────────────────────────────────────────── */
 const SYSTEM_KEYS = new Set([
@@ -102,7 +102,6 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
       else f[fd.name] = v ?? '';
     });
     if (!initial) {
-      
       if (formType === 'contracted') f.is_contracted = true;
     }
     return f;
@@ -261,14 +260,11 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
                       if (!files.length) return;
                       const newUrls = [...urls];
                       for (const file of files) {
-                        const formData = new FormData();
-                        formData.append('file', file);
                         try {
-                          const res = await fetch(`${api.BASE_URL}/api/upload`, { method: 'POST', body: formData });
-                          const data = await res.json();
-                          newUrls.push(data.url);
+                          const res = await api.uploadFile(file);
+                          if (res.url) newUrls.push(res.url);
                         } catch (err) {
-                          alert('이미지 업로드에 실패했습니다.');
+                          alert('이미지 업로드 실패: ' + err.message);
                         }
                       }
                       set(fd.name, newUrls);
@@ -279,9 +275,7 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
             );
           }
 
-
-
-          // ── Image Upload ─────────────────────────────────────────────
+          // ── Single Image ─────────────────────────────────────────────
           if (fd.field_type === 'image') {
             return (
               <div className="form-row" key={fd.id}>
@@ -295,16 +289,11 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
                   <input type="file" accept="image/*" className="form-input" style={{ padding:'.4rem' }} onChange={async (e) => {
                     const file = e.target.files[0];
                     if (!file) return;
-                    const formData = new FormData();
-                    formData.append('file', file);
                     try {
-                      const res = await fetch(`${api.BASE_URL}/api/upload`, {
-                        method: 'POST', body: formData
-                      });
-                      const data = await res.json();
-                      set(fd.name, data.url);
+                      const res = await api.uploadFile(file);
+                      if (res.url) set(fd.name, res.url);
                     } catch (err) {
-                      alert('이미지 업로드에 실패했습니다.');
+                      alert('이미지 업로드 실패: ' + err.message);
                     }
                   }} />
                 )}
@@ -312,34 +301,35 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
             );
           }
 
-          // ── Default: text / number / date ────────────────────────────
+          // ── Default text / number / date input ──────────────────────────
           return (
             <div className="form-row" key={fd.id}>
               <label className="form-label">
                 {fd.label}
-                {fd.name === 'name' && <span style={{ color:'var(--danger)', marginLeft:2 }}>*</span>}
+                {fd.name === 'name' && <span style={{ color:'var(--danger)' }}> *</span>}
               </label>
-              <input className="form-input"
-                type={fd.field_type === 'number' ? 'number' : fd.field_type === 'date' ? 'date' : 'text'}
-                placeholder={fd.field_type === 'date' ? '' : fd.label}
+              <input
+                type={fd.field_type === 'date' ? 'date' : fd.field_type === 'number' ? 'number' : 'text'}
+                className="form-input"
+                placeholder={fd.label}
                 value={form[fd.name] ?? ''}
-                onClick={e => { if (fd.field_type === 'date' && e.target.showPicker) e.target.showPicker(); }}
                 onChange={e => set(fd.name, e.target.value)}
-                required={fd.name === 'name'} />
+                required={fd.name === 'name'}
+              />
             </div>
           );
         })}
-      </div>
 
-      {!initial && formType === 'prospect' && (
-        <div className="modal-body" style={{ marginTop: 0, paddingTop: 0 }}>
+        {!initial && formType === 'prospect' && (
           <div className="form-row">
-            <label className="form-label">초기 상담 내역 (옵션)</label>
-            <textarea className="form-textarea" rows={4} placeholder="첫 상담 내용을 입력하세요 (날짜별 내역에 기록됩니다)"
-              value={initialConsultation} onChange={e => setInitialConsultation(e.target.value)} />
+            <label className="form-label">초기 상담 내용 (선택)</label>
+            <textarea className="form-textarea" rows={2}
+              placeholder="고객 등록과 동시에 기록할 상담 내용을 입력하세요"
+              value={initialConsultation}
+              onChange={e => setInitialConsultation(e.target.value)} />
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="modal-ft">
         <button type="button" className="btn btn-ghost" onClick={onClose}>취소</button>
@@ -351,43 +341,68 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
   );
 }
 
+const CONTRACT_PRODUCT_TYPES = [
+  { value: 'RENT', label: '장기렌트' },
+  { value: 'LEASE', label: '리스' },
+  { value: 'INSTALLMENT', label: '할부' },
+  { value: 'CASH', label: '일시불' },
+];
+
+const CONTRACT_STATUS_OPTIONS = [
+  { value: 'ACTIVE', label: '진행중' },
+  { value: 'COMPLETED', label: '정상종료' },
+  { value: 'CANCELLED', label: '취소/중도종료' },
+];
+
 /* ─── ContractForm ───────────────────────────────────────────────────── */
-function ContractForm({ initial, customerId, onSave, onClose, adminUsers, user }) {
-  const [form, setForm] = useState(() => {
-    return {
-      vehicle_model: initial?.vehicle_model || '',
-      product_type: initial?.product_type || '',
-      capital: initial?.capital || '',
-      contract_date: initial?.contract_date || '',
-      term_months: initial?.term_months || '',
-      dealer_info: initial?.dealer_info || '',
-      insurance_active: initial?.insurance_active || false,
-      supplies_work: initial?.supplies_work || '',
-      status: initial?.status || 'ACTIVE',
-      memo: initial?.memo || '',
-      assigned_user_id: initial?.assigned_user_id || user.id,
-    };
-  });
+function ContractForm({ initial, customerId, onSave, onClose, adminUsers = [], user, isConversion = false }) {
+  const [form, setForm] = useState(() => ({
+    vehicle_model: initial?.vehicle_model || '',
+    product_type: initial?.product_type || '',
+    capital: initial?.capital || '',
+    contract_date: initial?.contract_date || '',
+    term_months: initial?.term_months != null ? String(initial.term_months) : '',
+    monthly_payment: initial?.monthly_payment ?? '',
+    dealer_info: initial?.dealer_info || '',
+    insurance_active: initial?.insurance_active ?? false,
+    supplies_work: initial?.supplies_work || '',
+    memo: initial?.memo || '',
+    status: initial?.status || 'ACTIVE',
+    assigned_user_id: initial?.assigned_user_id || user?.id,
+  }));
   const [saving, setSaving] = useState(false);
 
-  const previewExpiry = computeExpiry(form.contract_date, form.term_months);
-  
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  // Live expiry preview
+  const previewExpiry = computeExpiry(form.contract_date, form.term_months);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (saving) return;
     setSaving(true);
     try {
-      const data = { ...form };
-      if (data.term_months) data.term_months = parseInt(data.term_months, 10);
-      else data.term_months = null;
-      if (!data.contract_date) data.contract_date = null;
-      if (user.role !== 'OWNER') {
-        delete data.assigned_user_id;
+      const data = {
+        vehicle_model: form.vehicle_model || null,
+        product_type: form.product_type || null,
+        capital: form.capital || null,
+        contract_date: form.contract_date || null,
+        term_months: form.term_months ? parseInt(form.term_months, 10) : null,
+        monthly_payment: form.monthly_payment !== '' && form.monthly_payment != null ? Number(form.monthly_payment) : null,
+        dealer_info: form.dealer_info || null,
+        insurance_active: !!form.insurance_active,
+        supplies_work: form.supplies_work || null,
+        memo: form.memo || null,
+        status: form.status || 'ACTIVE',
+      };
+
+      if (user?.role === 'OWNER' && form.assigned_user_id) {
+        data.assigned_user_id = Number(form.assigned_user_id);
       }
+
       await onSave(data);
     } catch (err) {
-      alert(err.message);
+      // onSave throws on error, handled in caller
     } finally {
       setSaving(false);
     }
@@ -399,37 +414,65 @@ function ContractForm({ initial, customerId, onSave, onClose, adminUsers, user }
         <div className="form-grid-2">
           <div className="form-row">
             <label className="form-label">차종 (모델명)</label>
-            <input className="form-input" value={form.vehicle_model} onChange={e => set('vehicle_model', e.target.value)} />
+            <input
+              className="form-input"
+              value={form.vehicle_model}
+              onChange={e => set('vehicle_model', e.target.value)}
+              placeholder="예: 아반떼, GV80"
+              required
+            />
           </div>
           <div className="form-row">
-            <label className="form-label">상품</label>
-            <select className="form-select" value={form.product_type} onChange={e => set('product_type', e.target.value)}>
+            <label className="form-label">상품 구분</label>
+            <select
+              className="form-select"
+              value={form.product_type}
+              onChange={e => set('product_type', e.target.value)}
+            >
               <option value="">— 선택 —</option>
-              <option value="장기렌트">장기렌트</option>
-              <option value="리스">리스</option>
-              <option value="할부">할부</option>
-              <option value="일시불">일시불</option>
+              {CONTRACT_PRODUCT_TYPES.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+              {form.product_type && !CONTRACT_PRODUCT_TYPES.some(opt => opt.value === form.product_type) && (
+                <option value={form.product_type}>{form.product_type}</option>
+              )}
             </select>
           </div>
+        </div>
+
+        <div className="form-grid-2">
           <div className="form-row">
-            <label className="form-label">계약일(인도일)</label>
-            <input type="date" className="form-input" value={form.contract_date} onChange={e => set('contract_date', e.target.value)} />
+            <label className="form-label">계약일</label>
+            <input
+              type="date"
+              className="form-input"
+              value={form.contract_date}
+              onChange={e => set('contract_date', e.target.value)}
+            />
           </div>
           <div className="form-row">
-            <label className="form-label">계약 개월수</label>
-            <select className="form-select" value={form.term_months} onChange={e => set('term_months', e.target.value)}>
+            <label className="form-label">계약 기간 (개월)</label>
+            <select
+              className="form-select"
+              value={form.term_months}
+              onChange={e => set('term_months', e.target.value)}
+            >
               <option value="">— 선택 —</option>
+              <option value="12">12개월</option>
               <option value="24">24개월</option>
               <option value="36">36개월</option>
               <option value="48">48개월</option>
               <option value="60">60개월</option>
+              {form.term_months && !['12', '24', '36', '48', '60'].includes(String(form.term_months)) && (
+                <option value={String(form.term_months)}>{form.term_months}개월</option>
+              )}
             </select>
           </div>
         </div>
 
         <div className="form-row">
-          <label className="form-label" style={{ display:'flex', alignItems:'center', gap:6 }}>
-            <Calendar size={13}/> 만기일 <span style={{ color:'var(--text-3)', fontWeight:400 }}>(자동 계산)</span>
+          <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Calendar size={13} /> 만기일 <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(자동 계산)</span>
           </label>
           <div className={`computed-field ${previewExpiry ? '' : 'empty'}`}>
             {previewExpiry || '계약일과 개월수를 입력하면 자동 계산됩니다'}
@@ -439,58 +482,87 @@ function ContractForm({ initial, customerId, onSave, onClose, adminUsers, user }
         <div className="form-grid-2">
           <div className="form-row">
             <label className="form-label">캐피탈</label>
-            <input className="form-input" value={form.capital} onChange={e => set('capital', e.target.value)} />
+            <input
+              className="form-input"
+              value={form.capital}
+              onChange={e => set('capital', e.target.value)}
+              placeholder="예: 현대캐피탈, KB캐피탈"
+            />
           </div>
           <div className="form-row">
-            <label className="form-label">담당 딜러+딜러사</label>
-            <input className="form-input" value={form.dealer_info} onChange={e => set('dealer_info', e.target.value)} />
+            <label className="form-label">월 납입금</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="예: 500,000"
+              value={form.monthly_payment !== '' && form.monthly_payment != null ? Number(form.monthly_payment).toLocaleString() : ''}
+              onChange={e => {
+                const num = parseInt(e.target.value.replace(/[^0-9]/g, ''), 10);
+                set('monthly_payment', isNaN(num) ? '' : num);
+              }}
+            />
           </div>
         </div>
 
+        <div className="form-grid-2">
+          <div className="form-row">
+            <label className="form-label">딜러 정보</label>
+            <input
+              className="form-input"
+              value={form.dealer_info}
+              onChange={e => set('dealer_info', e.target.value)}
+              placeholder="예: 강남지점 홍길동"
+            />
+          </div>
+          <div className="form-row">
+            <label className="form-label">계약 상태</label>
+            <select
+              className="form-select"
+              value={form.status}
+              onChange={e => set('status', e.target.value)}
+            >
+              {CONTRACT_STATUS_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="form-row">
+          <label className="form-label">용품 작업</label>
+          <input
+            className="form-input"
+            value={form.supplies_work}
+            onChange={e => set('supplies_work', e.target.value)}
+            placeholder="예: 썬팅(전면/측후면), 블랙박스 2채널"
+          />
+        </div>
+
         <div className="form-row" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--bg-input)', padding:'0.7rem 0.95rem', borderRadius:'var(--radius-md)', border:'1px solid var(--border)' }}>
-          <label className="form-label" style={{ marginBottom:0 }}>보험가입여부</label>
+          <label className="form-label" style={{ marginBottom:0 }}>보험 가입 여부</label>
           <label className="toggle">
-            <input type="checkbox" checked={form.insurance_active} onChange={e => set('insurance_active', e.target.checked)} />
+            <input type="checkbox" checked={!!form.insurance_active}
+              onChange={e => set('insurance_active', e.target.checked)} />
             <span className="track" />
           </label>
         </div>
 
         <div className="form-row">
-          <label className="form-label">용품작업내용+업체명</label>
-          <input className="form-input" value={form.supplies_work} onChange={e => set('supplies_work', e.target.value)} />
+          <label className="form-label">계약 메모</label>
+          <textarea
+            className="form-textarea"
+            rows={2}
+            value={form.memo}
+            onChange={e => set('memo', e.target.value)}
+            placeholder="계약 관련 메모"
+          />
         </div>
-        
-        <div className="form-row">
-          <label className="form-label">기타 메모</label>
-          <textarea className="form-textarea" rows={2} value={form.memo} onChange={e => set('memo', e.target.value)} />
-        </div>
-
-        {initial && (user?.role === 'OWNER' || initial.status === 'ACTIVE') && (
-          <div className="form-row">
-            <label className="form-label">계약 상태</label>
-            <select className="form-select" value={form.status} onChange={e => set('status', e.target.value)}>
-              {user?.role === 'OWNER' ? (
-                <>
-                  <option value="ACTIVE">진행중</option>
-                  <option value="COMPLETED">정상종료</option>
-                  <option value="CANCELLED">취소/중도종료</option>
-                </>
-              ) : (
-                <>
-                  <option value="ACTIVE">진행중</option>
-                  <option value="COMPLETED">정상종료</option>
-                  <option value="CANCELLED">취소/중도종료</option>
-                </>
-              )}
-            </select>
-          </div>
-        )}
 
         {user?.role === 'OWNER' && (
           <div className="form-row">
             <label className="form-label">담당자 지정 (OWNER 전용)</label>
             <select className="form-select" value={form.assigned_user_id} onChange={e => set('assigned_user_id', parseInt(e.target.value, 10))}>
-              <option value={user.id}>{user.name} (본인)</option>
+              <option value={user?.id}>{user?.name} (본인)</option>
               {adminUsers.map(u => (
                 <option key={u.id} value={u.id}>{u.name}</option>
               ))}
@@ -500,7 +572,7 @@ function ContractForm({ initial, customerId, onSave, onClose, adminUsers, user }
       </div>
 
       <div className="modal-ft">
-        <button type="button" className="btn btn-ghost" onClick={onClose}>취소</button>
+        <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>취소</button>
         <button type="submit" className="btn btn-primary" disabled={saving}>
           {saving ? '저장 중…' : '✓ 저장하기'}
         </button>
@@ -519,6 +591,7 @@ function Dashboard({ activeFields, user }) {
   const [modalMode, setModalMode] = useState(null);
   const [contractModalMode, setContractModalMode] = useState(null);
   const [selectedContract, setSelectedContract] = useState(null);
+  const [conversionContext, setConversionContext] = useState(null);
   const [noteText, setNoteText]   = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'id', dir: 'desc' });
   const [customerContracts, setCustomerContracts] = useState([]);
@@ -692,19 +765,82 @@ function Dashboard({ activeFields, user }) {
     load();
   };
 
+  const handleStartConversion = (opportunity, quote) => {
+    if (!opportunity || opportunity.status !== 'WON') return;
+
+    setConversionContext({
+      opportunityId: opportunity.id,
+      sourceQuoteId: quote ? quote.id : null,
+    });
+
+    if (quote) {
+      setSelectedContract({
+        vehicle_model: quote.vehicle_name || '',
+        product_type: quote.product_type || '',
+        capital: quote.capital_company || '',
+        term_months: quote.term_months ? String(quote.term_months) : '',
+        monthly_payment: quote.monthly_payment ?? '',
+        memo: quote.notes || '',
+        contract_date: '',
+        dealer_info: '',
+        insurance_active: false,
+        supplies_work: '',
+        status: 'ACTIVE',
+        assigned_user_id: quote.assigned_user_id || opportunity.assigned_user_id || user?.id,
+      });
+    } else {
+      setSelectedContract({
+        vehicle_model: '',
+        product_type: '',
+        capital: '',
+        term_months: '',
+        monthly_payment: '',
+        memo: '',
+        contract_date: '',
+        dealer_info: '',
+        insurance_active: false,
+        supplies_work: '',
+        status: 'ACTIVE',
+        assigned_user_id: opportunity.assigned_user_id || user?.id,
+      });
+    }
+    setContractModalMode('convert');
+  };
+
   const handleSaveContract = async (data) => {
     try {
       if (contractModalMode === 'create') {
         await api.createContract({ ...data, customer_id: selected.id });
+      } else if (contractModalMode === 'convert') {
+        const payload = {
+          ...data,
+          source_quote_id: conversionContext?.sourceQuoteId || null,
+        };
+        await api.convertOpportunityToContract(conversionContext.opportunityId, payload);
       } else {
         await api.updateContract(selectedContract.id, data);
       }
       setContractModalMode(null);
       setSelectedContract(null);
+      setConversionContext(null);
       api.getContracts(selected.id).then(setCustomerContracts).catch(() => setCustomerContracts([]));
       load();
     } catch (err) {
-      alert(err.message);
+      const errStr = String(err?.message || '') + ' ' + String(err?.status || '');
+      let msg = '계약 저장 중 오류가 발생했습니다.';
+      if (errStr.includes('409') || errStr.includes('already converted')) {
+        msg = '이미 계약으로 전환된 상담입니다.';
+      } else if (errStr.includes('403') || errStr.includes('Forbidden')) {
+        msg = '해당 상담의 계약 전환 권한이 없습니다.';
+      } else if (errStr.includes('404') || errStr.includes('not found')) {
+        msg = '상담 또는 견적 정보를 찾을 수 없습니다.';
+      } else if (errStr.includes('422') || errStr.includes('400') || errStr.includes('Invalid') || errStr.includes('validation') || errStr.includes('must be')) {
+        msg = '입력한 계약 정보를 확인해 주세요.';
+      } else if (err?.message) {
+        msg = err.message;
+      }
+      alert(msg);
+      throw err;
     }
   };
 
@@ -950,11 +1086,16 @@ function Dashboard({ activeFields, user }) {
                   })}
                 </div>
 
-                <OpportunitySection customerId={selected.id} user={user} adminUsers={adminUsers} />
+                <OpportunitySection
+                  customerId={selected.id}
+                  user={user}
+                  adminUsers={adminUsers}
+                  onConvertToContract={handleStartConversion}
+                />
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'1rem' }}>
                   <h3 style={{ fontSize:'.9rem', fontWeight:600, margin: 0 }}>📄 계약 내역</h3>
-                  <button className="btn btn-secondary btn-sm" onClick={() => { setContractModalMode('create'); setSelectedContract(null); }} style={{ padding: '0.2rem 0.6rem' }}><Plus size={12}/> 계약 추가</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => { setContractModalMode('create'); setSelectedContract(null); setConversionContext(null); }} style={{ padding: '0.2rem 0.6rem' }}><Plus size={12}/> 계약 추가</button>
                 </div>
                 {customerContracts.length === 0 ? (
                   <p style={{ color:'var(--text-3)', fontSize:'.82rem', textAlign:'center', padding:'1rem 0' }}>등록된 계약이 없습니다.</p>
@@ -972,7 +1113,7 @@ function Dashboard({ activeFields, user }) {
                           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                             <ExpiryBadge dateStr={contract.expiry_date} />
                             {(user?.role === 'OWNER' || contract.status === 'ACTIVE') && (
-                              <button className="btn btn-ghost btn-sm" style={{ padding: '0.2rem' }} onClick={() => { setSelectedContract(contract); setContractModalMode('edit'); }}><Edit2 size={12}/></button>
+                              <button className="btn btn-ghost btn-sm" style={{ padding: '0.2rem' }} onClick={() => { setSelectedContract(contract); setContractModalMode('edit'); setConversionContext(null); }}><Edit2 size={12}/></button>
                             )}
                           </div>
                         </div>
@@ -981,7 +1122,8 @@ function Dashboard({ activeFields, user }) {
                           <div><strong>기간:</strong> {contract.term_months ? `${contract.term_months}개월` : '-'}</div>
                           <div><strong>만기일:</strong> {contract.expiry_date || '-'}</div>
                           <div><strong>캐피탈:</strong> {contract.capital || '-'}</div>
-                          <div><strong>상품:</strong> {contract.product_type || '-'}</div>
+                          <div><strong>상품:</strong> {PRODUCT_TYPE_LABELS[contract.product_type] || contract.product_type || '-'}</div>
+                          <div><strong>월 납입금:</strong> {contract.monthly_payment ? `${Number(contract.monthly_payment).toLocaleString()}원` : '-'}</div>
                           <div style={{ gridColumn: '1 / -1', marginTop: 4, color: 'var(--text-3)' }}><strong>담당자:</strong> {contract.assigned_user_name || '-'}</div>
                         </div>
                       </div>
@@ -1044,21 +1186,22 @@ function Dashboard({ activeFields, user }) {
         </div>
       )}
 
-      {/* Contract Create / Edit modal */}
+      {/* Contract Create / Edit / Convert modal */}
       {contractModalMode && (
-        <div className="overlay" onClick={() => { setContractModalMode(null); setSelectedContract(null); }}>
+        <div className="overlay" onClick={() => { setContractModalMode(null); setSelectedContract(null); setConversionContext(null); }}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-hd">
-              <h2>{contractModalMode === 'create' ? '새 계약 추가' : '계약 수정'}</h2>
-              <button className="btn btn-ghost btn-icon" onClick={() => { setContractModalMode(null); setSelectedContract(null); }}><X size={16}/></button>
+              <h2>{contractModalMode === 'create' ? '새 계약 추가' : contractModalMode === 'convert' ? '계약 전환' : '계약 수정'}</h2>
+              <button className="btn btn-ghost btn-icon" onClick={() => { setContractModalMode(null); setSelectedContract(null); setConversionContext(null); }}><X size={16}/></button>
             </div>
             <ContractForm
-              initial={contractModalMode === 'edit' ? selectedContract : null}
+              initial={contractModalMode === 'create' ? null : selectedContract}
               customerId={selected?.id}
               onSave={handleSaveContract}
-              onClose={() => { setContractModalMode(null); setSelectedContract(null); }}
+              onClose={() => { setContractModalMode(null); setSelectedContract(null); setConversionContext(null); }}
               adminUsers={adminUsers}
               user={user}
+              isConversion={contractModalMode === 'convert'}
             />
           </div>
         </div>
@@ -1076,7 +1219,7 @@ function ExcelImport({ activeFields }) {
   const [mapping, setMapping] = useState({});
   const [result, setResult]   = useState(null);
   const [drag, setDrag]       = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]     = useState(false);
   const [error, setError]     = useState('');
   const fileRef = useRef();
 

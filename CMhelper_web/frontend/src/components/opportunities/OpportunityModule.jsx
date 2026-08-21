@@ -153,7 +153,7 @@ function QuoteList({ opportunityId, user, quotes, loadQuotes }) {
                 </button>
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-2)', display: 'flex', gap: '1rem', marginBottom: q.notes ? '0.75rem' : '0' }}>
-                <div><span style={{ color: 'var(--text-3)' }}>상품:</span> {PRODUCT_TYPE_LABELS[q.product_type]}</div>
+                <div><span style={{ color: 'var(--text-3)' }}>상품:</span> {PRODUCT_TYPE_LABELS[q.product_type] || q.product_type || '-'}</div>
                 <div><span style={{ color: 'var(--text-3)' }}>월 납입금:</span> {formatMoney(q.monthly_payment) || '-'}</div>
               </div>
               {q.notes && (
@@ -188,16 +188,17 @@ function QuoteList({ opportunityId, user, quotes, loadQuotes }) {
 }
 
 // --- Opportunity Detail ---
-function OpportunityDetail({ opportunity, onUpdate, onBack, user, adminUsers }) {
+function OpportunityDetail({ opportunity, onUpdate, onBack, user, adminUsers, onConvertToContract }) {
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState(false);
+  const [quoteSelectModalOpen, setQuoteSelectModalOpen] = useState(false);
   
   const loadQuotes = async () => {
     try {
       setLoading(true);
       const res = await api.getOpportunityQuotes(opportunity.id);
-      setQuotes(res);
+      setQuotes(res || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -234,6 +235,24 @@ function OpportunityDetail({ opportunity, onUpdate, onBack, user, adminUsers }) 
     }
   };
 
+  const handleConversionClick = () => {
+    if (opportunity.status !== 'WON') return;
+    if (!quotes || quotes.length === 0) {
+      // Scenario 1: Quote 0 -> open Contract Form empty
+      if (onConvertToContract) {
+        onConvertToContract(opportunity, null);
+      }
+    } else if (quotes.length === 1) {
+      // Scenario 2: Quote 1 -> automatically select it and prefill Contract Form
+      if (onConvertToContract) {
+        onConvertToContract(opportunity, quotes[0]);
+      }
+    } else {
+      // Scenario 3: Quote multiple -> present minimal Quote-selection UI
+      setQuoteSelectModalOpen(true);
+    }
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem', cursor: 'pointer', color: 'var(--primary)' }} onClick={onBack}>
@@ -241,7 +260,20 @@ function OpportunityDetail({ opportunity, onUpdate, onBack, user, adminUsers }) 
       </div>
       
       <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg)' }}>
-        <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem' }}>{opportunity.title}</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem' }}>{opportunity.title}</h3>
+          {opportunity.status === 'WON' && (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={handleConversionClick}
+              disabled={loading}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '0.35rem 0.75rem' }}
+            >
+              계약 전환
+            </button>
+          )}
+        </div>
         
         <div className="form-grid-2">
           <div className="form-row">
@@ -279,6 +311,81 @@ function OpportunityDetail({ opportunity, onUpdate, onBack, user, adminUsers }) 
         <p style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-3)' }}>불러오는 중...</p>
       ) : (
         <QuoteList opportunityId={opportunity.id} user={user} quotes={quotes} loadQuotes={loadQuotes} />
+      )}
+
+      {quoteSelectModalOpen && (
+        <div className="overlay" style={{ zIndex: 9999 }} onClick={() => setQuoteSelectModalOpen(false)}>
+          <div className="modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-hd">
+              <h2>계약으로 전환할 견적 선택</h2>
+              <button className="btn btn-ghost btn-icon" onClick={() => setQuoteSelectModalOpen(false)}><X size={16}/></button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-2)', marginBottom: '1rem' }}>
+                계약 정보로 불러올 견적을 선택해 주세요.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {quotes.map((q, i) => (
+                  <div
+                    key={q.id}
+                    style={{
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      padding: '1rem',
+                      background: 'var(--bg-card)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '1rem'
+                    }}
+                    onClick={() => {
+                      setQuoteSelectModalOpen(false);
+                      if (onConvertToContract) {
+                        onConvertToContract(opportunity, q);
+                      }
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: '0.2rem' }}>견적 #{i+1}</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-1)', marginBottom: '0.3rem' }}>
+                        {q.vehicle_name}
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-2)', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                        <div><span style={{ color: 'var(--text-3)' }}>상품:</span> {PRODUCT_TYPE_LABELS[q.product_type] || q.product_type}</div>
+                        {q.capital_company && <div><span style={{ color: 'var(--text-3)' }}>캐피탈:</span> {q.capital_company}</div>}
+                        {q.term_months && <div><span style={{ color: 'var(--text-3)' }}>기간:</span> {q.term_months}개월</div>}
+                        {q.monthly_payment && <div><span style={{ color: 'var(--text-3)' }}>월 납입금:</span> {formatMoney(q.monthly_payment)}</div>}
+                      </div>
+                      {q.notes && (
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-3)', marginTop: '0.4rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '380px' }}>
+                          {q.notes}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ whiteSpace: 'nowrap', padding: '0.35rem 0.75rem' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setQuoteSelectModalOpen(false);
+                        if (onConvertToContract) {
+                          onConvertToContract(opportunity, q);
+                        }
+                      }}
+                    >
+                      선택
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-ft">
+              <button type="button" className="btn btn-ghost" onClick={() => setQuoteSelectModalOpen(false)}>취소</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -368,7 +475,7 @@ function OpportunityForm({ initial, customerId, onSave, onClose, user, adminUser
 }
 
 // --- Main Exported Component ---
-export default function OpportunitySection({ customerId, user, adminUsers }) {
+export default function OpportunitySection({ customerId, user, adminUsers, onConvertToContract }) {
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalMode, setModalMode] = useState(null); // 'create'
@@ -405,6 +512,7 @@ export default function OpportunitySection({ customerId, user, adminUsers }) {
           onBack={() => setActiveViewOpp(null)}
           user={user}
           adminUsers={adminUsers}
+          onConvertToContract={onConvertToContract}
         />
       </div>
     );
