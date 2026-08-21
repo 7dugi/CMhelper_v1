@@ -183,3 +183,161 @@ def test_postgres_migration_idempotency_when_constraints_exist():
 
     executed_statements = [str(call.args[0]) for call in mock_conn.execute.call_args_list]
     assert not any("ADD CONSTRAINT" in s for s in executed_statements)
+
+
+def test_postgres_migration_preserves_matching_legacy_unique_index():
+    """A legacy unique index must satisfy the conversion uniqueness guarantee."""
+    mock_eng = MagicMock()
+    mock_eng.dialect.name = "postgresql"
+    mock_conn = MagicMock()
+    mock_eng.begin.return_value.__enter__.return_value = mock_conn
+
+    def mock_execute(stmt):
+        statement = str(stmt)
+        result_mock = MagicMock()
+        if "information_schema.columns" in statement:
+            result_mock.fetchall.return_value = [
+                ("contact",), ("region",), ("contract_date",), ("contract_months",),
+                ("expiry_date",), ("capital",), ("product_type",), ("is_prospect",),
+                ("is_contracted",), ("anniversary",), ("memo",), ("estimate_image",),
+                ("sent_quotes",), ("extra",), ("target_type",), ("scheduled_at",),
+                ("source_opportunity_id",), ("source_quote_id",), ("monthly_payment",),
+            ]
+        elif "information_schema.table_constraints" in statement:
+            result_mock.fetchall.return_value = [
+                ("fk_contracts_source_opportunity_id",),
+                ("fk_contracts_source_quote_id",),
+            ]
+        elif "pg_class AS table_rel" in statement:
+            result_mock.fetchall.return_value = [
+                ("uq_contracts_source_opportunity_id", True, False, ["source_opportunity_id"]),
+            ]
+        else:
+            result_mock.fetchall.return_value = []
+        return result_mock
+
+    mock_conn.execute.side_effect = mock_execute
+
+    run_migrations(mock_eng)
+
+    executed_statements = [str(call.args[0]) for call in mock_conn.execute.call_args_list]
+    assert not any(
+        "ADD CONSTRAINT uq_contracts_source_opportunity_id" in statement
+        for statement in executed_statements
+    )
+
+
+def test_postgres_migration_rejects_same_named_non_equivalent_index():
+    """A conflicting index name must not weaken the duplicate-conversion guarantee."""
+    mock_eng = MagicMock()
+    mock_eng.dialect.name = "postgresql"
+    mock_conn = MagicMock()
+    mock_eng.begin.return_value.__enter__.return_value = mock_conn
+
+    def mock_execute(stmt):
+        statement = str(stmt)
+        result_mock = MagicMock()
+        if "information_schema.columns" in statement:
+            result_mock.fetchall.return_value = [
+                ("contact",), ("region",), ("contract_date",), ("contract_months",),
+                ("expiry_date",), ("capital",), ("product_type",), ("is_prospect",),
+                ("is_contracted",), ("anniversary",), ("memo",), ("estimate_image",),
+                ("sent_quotes",), ("extra",), ("target_type",), ("scheduled_at",),
+                ("source_opportunity_id",), ("source_quote_id",), ("monthly_payment",),
+            ]
+        elif "information_schema.table_constraints" in statement:
+            result_mock.fetchall.return_value = [
+                ("fk_contracts_source_opportunity_id",),
+                ("fk_contracts_source_quote_id",),
+            ]
+        elif "pg_class AS table_rel" in statement:
+            result_mock.fetchall.return_value = [
+                ("uq_contracts_source_opportunity_id", True, True, ["source_opportunity_id"]),
+            ]
+        else:
+            result_mock.fetchall.return_value = []
+        return result_mock
+
+    mock_conn.execute.side_effect = mock_execute
+
+    with pytest.raises(RuntimeError, match="does not enforce a full unique constraint"):
+        run_migrations(mock_eng)
+
+
+def test_postgres_migration_preserves_differently_named_legacy_unique_index():
+    """A legacy non-partial single-column unique index with a different name must satisfy the guarantee."""
+    mock_eng = MagicMock()
+    mock_eng.dialect.name = "postgresql"
+    mock_conn = MagicMock()
+    mock_eng.begin.return_value.__enter__.return_value = mock_conn
+
+    def mock_execute(stmt):
+        statement = str(stmt)
+        result_mock = MagicMock()
+        if "information_schema.columns" in statement:
+            result_mock.fetchall.return_value = [
+                ("contact",), ("region",), ("contract_date",), ("contract_months",),
+                ("expiry_date",), ("capital",), ("product_type",), ("is_prospect",),
+                ("is_contracted",), ("anniversary",), ("memo",), ("estimate_image",),
+                ("sent_quotes",), ("extra",), ("target_type",), ("scheduled_at",),
+                ("source_opportunity_id",), ("source_quote_id",), ("monthly_payment",),
+            ]
+        elif "information_schema.table_constraints" in statement:
+            result_mock.fetchall.return_value = [
+                ("fk_contracts_source_opportunity_id",),
+                ("fk_contracts_source_quote_id",),
+            ]
+        elif "pg_class AS table_rel" in statement:
+            result_mock.fetchall.return_value = [
+                ("legacy_contracts_source_opportunity_id_key", True, False, ["source_opportunity_id"]),
+            ]
+        else:
+            result_mock.fetchall.return_value = []
+        return result_mock
+
+    mock_conn.execute.side_effect = mock_execute
+
+    run_migrations(mock_eng)
+
+    executed_statements = [str(call.args[0]) for call in mock_conn.execute.call_args_list]
+    assert not any(
+        "ADD CONSTRAINT uq_contracts_source_opportunity_id" in statement
+        for statement in executed_statements
+    )
+
+
+def test_postgres_migration_rejects_same_named_non_unique_or_wrong_columns_index():
+    """A same-named index that is not unique or covers different columns must fail closed."""
+    mock_eng = MagicMock()
+    mock_eng.dialect.name = "postgresql"
+    mock_conn = MagicMock()
+    mock_eng.begin.return_value.__enter__.return_value = mock_conn
+
+    def mock_execute(stmt):
+        statement = str(stmt)
+        result_mock = MagicMock()
+        if "information_schema.columns" in statement:
+            result_mock.fetchall.return_value = [
+                ("contact",), ("region",), ("contract_date",), ("contract_months",),
+                ("expiry_date",), ("capital",), ("product_type",), ("is_prospect",),
+                ("is_contracted",), ("anniversary",), ("memo",), ("estimate_image",),
+                ("sent_quotes",), ("extra",), ("target_type",), ("scheduled_at",),
+                ("source_opportunity_id",), ("source_quote_id",), ("monthly_payment",),
+            ]
+        elif "information_schema.table_constraints" in statement:
+            result_mock.fetchall.return_value = [
+                ("fk_contracts_source_opportunity_id",),
+                ("fk_contracts_source_quote_id",),
+            ]
+        elif "pg_class AS table_rel" in statement:
+            result_mock.fetchall.return_value = [
+                ("uq_contracts_source_opportunity_id", False, False, ["source_opportunity_id"]),
+            ]
+        else:
+            result_mock.fetchall.return_value = []
+        return result_mock
+
+    mock_conn.execute.side_effect = mock_execute
+
+    with pytest.raises(RuntimeError, match="does not enforce a full unique constraint"):
+        run_migrations(mock_eng)

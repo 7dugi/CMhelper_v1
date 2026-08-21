@@ -99,8 +99,49 @@ def run_migrations(eng) -> None:
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_contracts_source_quote_id ON contracts(source_quote_id)"))
         else:
             # PostgreSQL: check constraints before adding
-            result = conn.execute(text("SELECT constraint_name FROM information_schema.table_constraints WHERE table_name='contracts'"))
+            result = conn.execute(text(
+                "SELECT constraint_name FROM information_schema.table_constraints "
+                "WHERE table_name='contracts' AND table_schema=current_schema()"
+            ))
             existing_constraints = {row[0] for row in result.fetchall()}
+
+            # A previous forward-only migration created the conversion guarantee as
+            # a unique index. PostgreSQL shares the relation namespace for indexes
+            # and constraints, so attempting to add a constraint with that same
+            # name fails even though the uniqueness guarantee already exists.
+            # Inspect the index definition rather than treating every same-named
+            # index as equivalent.
+            result = conn.execute(text("""
+                SELECT index_rel.relname,
+                       index_data.indisunique,
+                       index_data.indpred IS NOT NULL,
+                       COALESCE(
+                           array_agg(attribute.attname ORDER BY key_column.ordinality)
+                               FILTER (WHERE attribute.attname IS NOT NULL),
+                           ARRAY[]::name[]
+                       )
+                FROM pg_class AS table_rel
+                JOIN pg_namespace AS table_ns ON table_ns.oid = table_rel.relnamespace
+                JOIN pg_index AS index_data ON index_data.indrelid = table_rel.oid
+                JOIN pg_class AS index_rel ON index_rel.oid = index_data.indexrelid
+                LEFT JOIN LATERAL unnest(index_data.indkey::smallint[]) WITH ORDINALITY
+                    AS key_column(attnum, ordinality) ON TRUE
+                LEFT JOIN pg_attribute AS attribute
+                    ON attribute.attrelid = table_rel.oid
+                   AND attribute.attnum = key_column.attnum
+                WHERE table_rel.relname = 'contracts'
+                  AND table_ns.nspname = current_schema()
+                GROUP BY index_rel.relname, index_data.indisunique,
+                         (index_data.indpred IS NOT NULL)
+            """))
+            existing_indexes = {
+                row[0]: {
+                    "unique": bool(row[1]),
+                    "partial": bool(row[2]),
+                    "columns": tuple(row[3] or ()),
+                }
+                for row in result.fetchall()
+            }
 
             if "fk_contracts_source_opportunity_id" not in existing_constraints:
                 conn.execute(text(
@@ -114,7 +155,30 @@ def run_migrations(eng) -> None:
                     "FOREIGN KEY (source_quote_id) REFERENCES quotes(id) ON DELETE SET NULL"
                 ))
 
-            if "uq_contracts_source_opportunity_id" not in existing_constraints:
+            unique_constraint_name = "uq_contracts_source_opportunity_id"
+            same_named_index = existing_indexes.get(unique_constraint_name)
+            if same_named_index is not None:
+                if not (
+                    same_named_index["unique"]
+                    and not same_named_index["partial"]
+                    and same_named_index["columns"] == ("source_opportunity_id",)
+                ):
+                    raise RuntimeError(
+                        "Migration blocked: existing index "
+                        "uq_contracts_source_opportunity_id does not enforce a full unique "
+                        "constraint on contracts.source_opportunity_id"
+                    )
+
+            has_valid_unique_index = any(
+                idx["unique"]
+                and not idx["partial"]
+                and idx["columns"] == ("source_opportunity_id",)
+                for idx in existing_indexes.values()
+            )
+
+            if unique_constraint_name in existing_constraints or has_valid_unique_index:
+                pass
+            else:
                 conn.execute(text(
                     "ALTER TABLE contracts ADD CONSTRAINT uq_contracts_source_opportunity_id "
                     "UNIQUE (source_opportunity_id)"
