@@ -42,16 +42,22 @@
 - pending / sent / failed 상태 처리
 - Agent PyInstaller 빌드 명세 (`requirements-build.txt`, `CMhelper_agent.spec` -> `CMhelper_agent.exe`)
 - Harness `cmhelper_pc_agent_auth` 검증 프로파일 (Agent 단위 테스트 및 격리 빌드 검증)
+- 카카오톡 UIA 어댑터 (`CMhelper_agent/kakao_ui.py`):
+  - `pywinauto` UIA 기반 카카오톡 메인 창 활성화 및 접근 가능한 이름 기반 채팅 탭 전용 탐색/상태 검증
+  - 친구 탭, 친구 추가, 새로운 채팅, 고정 좌표 클릭, 이미지 매칭, `Ctrl+2` 단축키 엄격 배제
+  - 채팅 검색창 활성화, 검색어 입력 및 정확히 1건의 기존 채팅방 일치 검증 (0건 또는 2건 이상 모호성 시 Fail-Closed)
+  - 전면 대화창 제목 검증 (수신자명 불일치 시 창 닫기 및 Fail-Closed)
+  - 모든 탐색 시도(정상, 실패, 취소, 예외) 후 `finally` 블록에서 멱등한 임시 검색 정리(`cleanup_search()`, 카카오 데이터 보존)
+  - 자동화 단위 테스트 가짜 UI 객체 전용 검증 (`CMhelper_agent/tests/test_kakao_ui.py`, 메시지 미발송 검증)
+  - 단순 git revert를 통한 롤백(Rollback-by-Revert) 태세 유지 및 사후 전용 테스트 방 수동 QA 경계 정의
 
 ## [PARTIALLY VERIFIED]
-- 해상도별 좌표 안정성
-- 동명이인 구분
-- 여러 카카오톡 버전 호환성
+- 동명이인 구분 및 단일 채팅방 매칭
 - 이미지 팝업 예외 처리
+- 여러 카카오톡 버전 호환성
 - 네트워크 장애 복구
 
 ## [PLANNED]
-- pywinauto 기반 UI 객체 제어
 - OpenCV Fallback
 - Remote Config
 - Canary Test

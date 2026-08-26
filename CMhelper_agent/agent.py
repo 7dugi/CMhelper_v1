@@ -18,8 +18,28 @@ import socket
 
 try:
     from .api_client import AgentApiClient, AuthenticationError, AgentApiError
+    from .kakao_ui import (
+        KakaoUIAdapter,
+        KakaoUIError,
+        KakaoWindowNotFoundError,
+        KakaoChatsNavigationError,
+        KakaoSearchError,
+        KakaoAmbiguousResultError,
+        KakaoTitleMismatchError,
+        KakaoPopupBlockedError,
+    )
 except ImportError:
     from api_client import AgentApiClient, AuthenticationError, AgentApiError
+    from kakao_ui import (
+        KakaoUIAdapter,
+        KakaoUIError,
+        KakaoWindowNotFoundError,
+        KakaoChatsNavigationError,
+        KakaoSearchError,
+        KakaoAmbiguousResultError,
+        KakaoTitleMismatchError,
+        KakaoPopupBlockedError,
+    )
 
 API_BASE_URL = "https://cmhelper-v1.vercel.app/api"
 # API_BASE_URL = "http://localhost:8002/api"
@@ -83,6 +103,7 @@ class CMHelperAgent(tk.Tk):
         self.resizable(False, False)
 
         self.api_client = AgentApiClient(base_url=API_BASE_URL)
+        self.kakao_ui = KakaoUIAdapter()
         self.is_running = False
         self.tasks_to_send = []
 
@@ -376,53 +397,43 @@ class CMHelperAgent(tk.Tk):
                 if not self.activate_kakaotalk():
                     err_msg = "카카오톡 창을 찾을 수 없습니다!"
                     self.log(err_msg)
+                    try:
+                        self.api_client.update_message_status(int(task_id), "failed")
+                    except AuthenticationError:
+                        self.log("인증 만료로 상태 업데이트 실패 및 작업 중단")
+                        self._handle_auth_invalidation("인증 만료")
+                    except Exception:
+                        pass
                     self.update_tree_status(task_id, "실패", err_msg)
                     self.is_running = False
                     break
                 time.sleep(0.8)
 
-                # 3. 카카오톡 채팅 탭 클릭 후 검색창 클릭 (단축키 오류 방지)
-                kakao_hwnd = win32gui.FindWindow(None, "카카오톡")
-                if kakao_hwnd:
-                    rect = win32gui.GetWindowRect(kakao_hwnd)
-                    win_x = rect[0]
-                    win_y = rect[1]
-                    win_w = rect[2] - rect[0]
-
-                    # 좌측 두번째 아이콘 (채팅 탭) 클릭 - 창 크기와 무관하게 고정된 위치 (좌측에서 35px, 위에서 130px)
-                    chat_tab_x = win_x + 35
-                    chat_tab_y = win_y + 130
-                    pyautogui.click(chat_tab_x, chat_tab_y)
-                    time.sleep(0.5)
-
-                    # 사용자가 요청한 방식: 채팅 탭 클릭 후 Ctrl+F 단축키로 검색창 열기
-                    pyautogui.hotkey('ctrl', 'f')
-                    time.sleep(0.5)
-
-                # Ctrl+F를 누르면 검색창의 기존 텍스트가 모두 블록 지정되므로 바로 백스페이스로 지움 (Ctrl+A 절대 사용 금지 - 친구추가 단축키임)
-                # 만약 블록 지정이 안 되었을 경우를 대비해 커서를 끝으로 보내고 백스페이스를 충분히 눌러 완전히 지웁니다.
-                pyautogui.press('end')
-                time.sleep(0.1)
-                pyautogui.press('backspace', presses=20)
-                time.sleep(0.1)
-
-                # 이름 복사 후 붙여넣기
-                pyperclip.copy(customer_name)
-                pyautogui.hotkey('ctrl', 'v')
-                time.sleep(1.2)
-
-                # 5. 엔터 눌러서 채팅방 열기
-                pyautogui.press('enter')
-                time.sleep(1.5)
-
-                # 6. 열린 창의 제목 검사 (동명이인/친구추가 팝업 방지)
-                active_hwnd = win32gui.GetForegroundWindow()
-                active_title = win32gui.GetWindowText(active_hwnd).strip()
-
-                if active_title != customer_name.strip():
-                    err_msg = f"이름 불일치 (기대:{customer_name} / 실제:{active_title})"
+                # 3. UIA 어댑터를 통한 카카오톡 채팅 탭 탐색, 검색, 1건 결과 진입 및 창 제목 검증
+                nav_success = False
+                chat_opened = False
+                failure_reported = False
+                try:
+                    self.kakao_ui.open_chat_for_recipient(customer_name)
+                    nav_success = True
+                    chat_opened = True
+                except KakaoWindowNotFoundError as e:
+                    err_msg = f"카카오톡 창을 찾을 수 없습니다: {e}"
+                    self.log(err_msg)
+                    try:
+                        self.api_client.update_message_status(int(task_id), "failed")
+                    except AuthenticationError:
+                        self.log("인증 만료로 상태 업데이트 실패 및 작업 중단")
+                        self._handle_auth_invalidation("인증 만료")
+                    except Exception:
+                        pass
+                    self.update_tree_status(task_id, "실패", err_msg)
+                    failure_reported = True
+                    self.is_running = False
+                    break
+                except KakaoTitleMismatchError as e:
+                    err_msg = f"이름 불일치: {e}"
                     self.log(f"-> 발송 실패: {err_msg}")
-                    pyautogui.press('esc')
                     try:
                         self.api_client.update_message_status(int(task_id), "failed")
                     except AuthenticationError:
@@ -432,6 +443,62 @@ class CMHelperAgent(tk.Tk):
                     except Exception:
                         pass
                     self.update_tree_status(task_id, "실패", "이름 불일치 또는 미등록")
+                    failure_reported = True
+                    continue
+                except (KakaoChatsNavigationError, KakaoSearchError, KakaoAmbiguousResultError, KakaoPopupBlockedError, KakaoUIError) as e:
+                    err_msg = f"채팅방 탐색 실패: {e}"
+                    self.log(f"-> 발송 실패: {err_msg}")
+                    try:
+                        self.api_client.update_message_status(int(task_id), "failed")
+                    except AuthenticationError:
+                        self.log("인증 만료로 상태 업데이트 실패 및 작업 중단")
+                        self._handle_auth_invalidation("인증 만료")
+                        break
+                    except Exception:
+                        pass
+                    self.update_tree_status(task_id, "실패", str(e))
+                    failure_reported = True
+                    continue
+                except Exception as e:
+                    err_msg = f"예상치 못한 탐색 오류: {e}"
+                    self.log(f"-> 발송 실패: {err_msg}")
+                    try:
+                        self.api_client.update_message_status(int(task_id), "failed")
+                    except AuthenticationError:
+                        self.log("인증 만료로 상태 업데이트 실패 및 작업 중단")
+                        self._handle_auth_invalidation("인증 만료")
+                        break
+                    except Exception:
+                        pass
+                    self.update_tree_status(task_id, "실패", err_msg)
+                    failure_reported = True
+                    continue
+                finally:
+                    # 모든 경로(정상 완료, 안전 실패, 취소, 예외)에서 임시 검색어 및 검색 상태 정리
+                    try:
+                        cleanup_ok = self.kakao_ui.cleanup_search()
+                        if not cleanup_ok:
+                            self.log("검색 상태 정리 실패")
+                            nav_success = False
+                    except Exception as clean_err:
+                        self.log(f"검색 상태 정리 중 오류: {clean_err}")
+                        nav_success = False
+
+                if not nav_success:
+                    if chat_opened:
+                        pyautogui.press('esc')
+                    if not failure_reported:
+                        err_msg = "검색 상태 정리 실패"
+                        self.log(f"-> 발송 실패: {err_msg}")
+                        try:
+                            self.api_client.update_message_status(int(task_id), "failed")
+                        except AuthenticationError:
+                            self.log("인증 만료로 상태 업데이트 실패 및 작업 중단")
+                            self._handle_auth_invalidation("인증 만료")
+                            break
+                        except Exception:
+                            pass
+                        self.update_tree_status(task_id, "실패", err_msg)
                     continue
 
                 # 7. 이미지 먼저 첨부 및 발송 (이미지 팝업이 텍스트 발송을 막는 현상 수정)

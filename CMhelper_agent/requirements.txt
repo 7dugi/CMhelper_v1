@@ -3,3 +3,4 @@ pyautogui
 pyperclip
 pillow
 pywin32
+pywinauto
