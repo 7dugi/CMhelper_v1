@@ -1,0 +1,479 @@
+import os
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+# Ensure env vars are set before importing main
+os.environ["JWT_SECRET_KEY"] = "test-secret"
+os.environ["CMHELPER_INVITE_CODE"] = "TEST-INVITE"
+os.environ["CMHELPER_OWNER_EMAIL"] = "owner@test.com"
+os.environ["CMHELPER_DEFAULT_COMPANY_NAME"] = "Test Company"
+os.environ["CMHELPER_DEFAULT_COMPANY_SLUG"] = "test-company"
+
+from app.main import app, run_migrations
+from app.database import Base, get_db
+
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def override_get_db():
+    try:
+        db = TestingSessionLocal()
+        yield db
+    finally:
+        db.close()
+
+client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def setup_db():
+    app.dependency_overrides[get_db] = override_get_db
+    Base.metadata.create_all(bind=engine)
+    run_migrations(engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
+    app.dependency_overrides.pop(get_db, None)
+
+def test_register_success():
+    res = client.post("/api/auth/register", json={
+        "name": "Owner User",
+        "email": "owner@TEST.com",  # Test lowercase normalization
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    assert res.status_code == 201
+    data = res.json()
+    assert data["email"] == "owner@test.com"
+    assert data["role"] == "OWNER"
+
+def test_register_duplicate_email():
+    payload = {
+        "name": "Test User",
+        "email": "user@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    }
+    client.post("/api/auth/register", json=payload)
+    res = client.post("/api/auth/register", json=payload)
+    assert res.status_code == 409
+
+def test_register_invalid_invite_code():
+    res = client.post("/api/auth/register", json={
+        "name": "Test User",
+        "email": "user2@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "WRONG-CODE"
+    })
+    assert res.status_code == 403
+
+def test_login_success():
+    res_reg = client.post("/api/auth/register", json={
+        "name": "Test User",
+        "email": "login@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    user_id = res_reg.json()["id"]
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+        db.commit()
+    finally:
+        db.close()
+
+    res = client.post("/api/auth/login", json={
+        "email": "LOGIN@test.com", # Test lowercase normalization
+        "password": "password123"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
+
+def test_login_invalid_password():
+    client.post("/api/auth/register", json={
+        "name": "Test User",
+        "email": "login2@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    res = client.post("/api/auth/login", json={
+        "email": "login2@test.com",
+        "password": "wrongpassword"
+    })
+    assert res.status_code == 401
+    assert "Invalid credentials" in res.json()["detail"]
+
+def test_auth_me():
+    res_reg = client.post("/api/auth/register", json={
+        "name": "Test User",
+        "email": "me@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    user_id = res_reg.json()["id"]
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+        db.commit()
+    finally:
+        db.close()
+
+    login_res = client.post("/api/auth/login", json={
+        "email": "me@test.com",
+        "password": "password123"
+    })
+    token = login_res.json()["access_token"]
+    
+    me_res = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me_res.status_code == 200
+    assert me_res.json()["email"] == "me@test.com"
+
+def test_auth_me_invalid_token():
+    me_res = client.get("/api/auth/me", headers={"Authorization": "Bearer invalid_token"})
+    assert me_res.status_code == 401
+
+def test_register_email_trimming():
+    res = client.post("/api/auth/register", json={
+        "name": "Trim User",
+        "email": "   trim@test.com   ",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    assert res.status_code == 201
+    assert res.json()["email"] == "trim@test.com"
+
+def test_register_email_case_insensitivity():
+    client.post("/api/auth/register", json={
+        "name": "Case User 1",
+        "email": "case@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    res = client.post("/api/auth/register", json={
+        "name": "Case User 2",
+        "email": "CASE@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    assert res.status_code == 409
+
+def test_register_password_too_short():
+    res = client.post("/api/auth/register", json={
+        "name": "Short Pass",
+        "email": "short@test.com",
+        "password": "pass",
+        "password_confirm": "pass",
+        "invite_code": "TEST-INVITE"
+    })
+    assert res.status_code == 422
+
+def test_register_password_mismatch():
+    res = client.post("/api/auth/register", json={
+        "name": "Mismatch Pass",
+        "email": "mismatch@test.com",
+        "password": "password123",
+        "password_confirm": "password456",
+        "invite_code": "TEST-INVITE"
+    })
+    assert res.status_code == 422
+
+def test_login_invalid_email_and_password_responses_are_identical():
+    # Login with non-existent email
+    res1 = client.post("/api/auth/login", json={
+        "email": "nonexistent@test.com",
+        "password": "password123"
+    })
+    # Login with wrong password for existing user
+    client.post("/api/auth/register", json={
+        "name": "Existent",
+        "email": "existent@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    res2 = client.post("/api/auth/login", json={
+        "email": "existent@test.com",
+        "password": "wrongpassword"
+    })
+    assert res1.status_code == 401
+    assert res2.status_code == 401
+    assert res1.json()["detail"] == res2.json()["detail"] == "Invalid credentials"
+
+def test_auth_me_expired_token():
+    import time
+    from app.main import create_access_token
+    # manually create an expired token
+    token = create_access_token({"sub": "999"})
+    # hack to expire it immediately by replacing time
+    import jwt
+    from app.main import JWT_SECRET_KEY, JWT_ALGORITHM
+    expired_token = jwt.encode({"sub": "999", "exp": int(time.time()) - 100}, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    res = client.get("/api/auth/me", headers={"Authorization": f"Bearer {expired_token}"})
+    assert res.status_code == 401
+
+def test_auth_me_inactive_user():
+    res_reg = client.post("/api/auth/register", json={
+        "name": "Inactive User",
+        "email": "inactive@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    user_id = res_reg.json()["id"]
+    
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+        db.commit()
+    finally:
+        db.close()
+
+    # login to get token
+    res_login = client.post("/api/auth/login", json={
+        "email": "inactive@test.com",
+        "password": "password123"
+    })
+    token = res_login.json()["access_token"]
+    
+    # manually deactivate user
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        user = db.query(User).filter_by(id=user_id).first()
+        user.status = "INACTIVE"
+        db.commit()
+    finally:
+        db.close()
+    
+    # token should now fail
+    res_me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert res_me.status_code == 403
+
+def test_auth_me_inactive_company():
+    res_reg = client.post("/api/auth/register", json={
+        "name": "Inactive Co User",
+        "email": "inactive_co@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    user_id = res_reg.json()["id"]
+    
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+        db.commit()
+    finally:
+        db.close()
+
+    res_login = client.post("/api/auth/login", json={
+        "email": "inactive_co@test.com",
+        "password": "password123"
+    })
+    token = res_login.json()["access_token"]
+    
+    # manually deactivate company
+    db = TestingSessionLocal()
+    try:
+        from app.models import User, Company
+        user = db.query(User).filter_by(id=user_id).first()
+        company = db.query(Company).filter_by(id=user.company_id).first()
+        company.status = "INACTIVE"
+        db.commit()
+    finally:
+        db.close()
+    
+    res_me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert res_me.status_code == 403
+
+def test_default_company_creation():
+    db = TestingSessionLocal()
+    try:
+        from app.models import Company
+        count_before = db.query(Company).count()
+    finally:
+        db.close()
+
+    client.post("/api/auth/register", json={
+        "name": "Company User 1",
+        "email": "co1@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    db = TestingSessionLocal()
+    try:
+        from app.models import Company
+        count_after_first = db.query(Company).count()
+    finally:
+        db.close()
+    
+    client.post("/api/auth/register", json={
+        "name": "Company User 2",
+        "email": "co2@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    db = TestingSessionLocal()
+    try:
+        from app.models import Company
+        count_after_second = db.query(Company).count()
+    finally:
+        db.close()
+    
+    # Only 1 new company should be created, and the second user should reuse it
+    assert count_after_first == count_before + 1
+    assert count_after_second == count_after_first
+
+def test_missing_env_vars_fail_fast():
+    import subprocess
+    import sys
+    
+    env = os.environ.copy()
+    env.pop("JWT_SECRET_KEY", None)
+    cmd = [
+        sys.executable,
+        "-c",
+        "import os; os.environ.pop('JWT_SECRET_KEY', None); import app.main"
+    ]
+    result = subprocess.run(
+        cmd,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    )
+    assert result.returncode != 0
+    assert "Fail-Fast" in result.stderr or "RuntimeError" in result.stderr
+
+def test_password_confirm_not_in_db():
+    res = client.post("/api/auth/register", json={
+        "name": "No Confirm",
+        "email": "noconfirm@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    user_id = res.json()["id"]
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        user = db.query(User).filter_by(id=user_id).first()
+        assert not hasattr(user, "password_confirm")
+    finally:
+        db.close()
+
+def test_jwt_expiry_120_minutes():
+    res_reg = client.post("/api/auth/register", json={
+        "name": "JWT User",
+        "email": "jwt@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    user_id = res_reg.json()["id"]
+    db = TestingSessionLocal()
+    try:
+        from app.models import User
+        db.query(User).filter_by(id=user_id).update({"status": "ACTIVE"})
+        db.commit()
+    finally:
+        db.close()
+
+    res_login = client.post("/api/auth/login", json={
+        "email": "jwt@test.com",
+        "password": "password123"
+    })
+    token = res_login.json()["access_token"]
+    
+    import jwt
+    from app.main import JWT_SECRET_KEY, JWT_ALGORITHM
+    payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    
+    # The difference between exp and iat should be exactly 120 minutes
+    assert payload["exp"] - payload["iat"] == 120 * 60
+
+def test_rbac_owner_vs_user():
+    # Register OWNER
+    res_owner = client.post("/api/auth/register", json={
+        "name": "Owner",
+        "email": "owner@test.com",  # matches CMHELPER_OWNER_EMAIL
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    assert res_owner.status_code == 201
+    assert res_owner.json()["role"] == "OWNER"
+    assert res_owner.json()["status"] == "ACTIVE"
+    owner_id = res_owner.json()["id"]
+
+    # Login OWNER
+    token_owner = client.post("/api/auth/login", json={
+        "email": "owner@test.com",
+        "password": "password123"
+    }).json()["access_token"]
+
+    # Register USER
+    res_user = client.post("/api/auth/register", json={
+        "name": "User",
+        "email": "user_rbac@test.com",
+        "password": "password123",
+        "password_confirm": "password123",
+        "invite_code": "TEST-INVITE"
+    })
+    assert res_user.status_code == 201
+    assert res_user.json()["role"] == "USER"
+    assert res_user.json()["status"] == "PENDING"
+    user_id = res_user.json()["id"]
+
+    # USER Login fails (PENDING)
+    res_login_user = client.post("/api/auth/login", json={
+        "email": "user_rbac@test.com",
+        "password": "password123"
+    })
+    assert res_login_user.status_code == 403
+    assert "대기 중" in res_login_user.json()["detail"]
+
+    # OWNER approves USER
+    res_approve = client.patch(f"/api/admin/users/{user_id}/status", json={"status": "ACTIVE"}, headers={"Authorization": f"Bearer {token_owner}"})
+    assert res_approve.status_code == 200
+    assert res_approve.json()["status"] == "ACTIVE"
+
+    # USER Login succeeds
+    token_user = client.post("/api/auth/login", json={
+        "email": "user_rbac@test.com",
+        "password": "password123"
+    }).json()["access_token"]
+
+    # USER cannot access admin users endpoint
+    res_admin_user = client.get("/api/admin/users", headers={"Authorization": f"Bearer {token_user}"})
+    assert res_admin_user.status_code == 403
+
+    # OWNER cannot deactivate self
+    res_deactivate_self = client.patch(f"/api/admin/users/{owner_id}/status", json={"status": "INACTIVE"}, headers={"Authorization": f"Bearer {token_owner}"})
+    assert res_deactivate_self.status_code == 403
+

@@ -207,3 +207,7 @@ Architecture Gate 대상 작업은 다음 조건을 모두 충족해야 구현�
 - 롤백 영향
 
 Architecture Gate에 영향을 주는 변경은 재승인을 받습니다. 작은 구현 세부사항은 결과 보고에 기록하되, DB/API/보안/Scope 변경은 반드시 재승인합니다.
+
+### Architecture Freeze 원칙
+- 한 번 Architecture Gate를 통과하고 승인된 기능의 기본 설계와 아키텍처 결정사항은 해당 Sprint 도중에 임의로 뒤집거나 번복하지 않습니다.
+- 확정된 범위를 넘어서는 근본적인 구조 변경은 새로운 Architecture Gate로 분리하여 다음 Sprint에서 다룹니다.

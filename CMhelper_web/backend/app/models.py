@@ -1,8 +1,61 @@
 import datetime
 import uuid
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON
+import enum
+from sqlalchemy import Column, UniqueConstraint, Integer, String, Boolean, DateTime, ForeignKey, JSON, text, BigInteger, Numeric
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from .database import Base
+
+class CompanyStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+class UserRole(str, enum.Enum):
+    OWNER = "OWNER"
+    ADMIN = "ADMIN"
+    USER = "USER"
+
+class UserStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+class OpportunityStatus(str, enum.Enum):
+    NEW = "NEW"
+    QUOTING = "QUOTING"
+    NEGOTIATING = "NEGOTIATING"
+    WON = "WON"
+    LOST = "LOST"
+    ON_HOLD = "ON_HOLD"
+
+class Company(Base):
+    __tablename__ = "companies"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    name       = Column(String, nullable=False)
+    slug       = Column(String, nullable=False, unique=True, index=True)
+    status     = Column(String, default=CompanyStatus.ACTIVE.value, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+    users = relationship("User", back_populates="company")
+    quotes = relationship("Quote", back_populates="company")
+
+class User(Base):
+    __tablename__ = "users"
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    company_id    = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    email         = Column(String, nullable=False, unique=True, index=True)
+    password_hash = Column(String, nullable=False)
+    name          = Column(String, nullable=False)
+    role          = Column(String, default=UserRole.USER.value, nullable=False)
+    status        = Column(String, default=UserStatus.ACTIVE.value, nullable=False)
+    created_at    = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    updated_at    = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False)
+
+    company = relationship("Company", back_populates="users")
+    quotes = relationship("Quote", back_populates="assigned_user")
 
 
 class FieldDefinition(Base):
@@ -25,6 +78,8 @@ class Customer(Base):
     __tablename__ = "customers"
 
     id               = Column(Integer, primary_key=True, autoincrement=True)
+    company_id       = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    assigned_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     # ── System fixed columns ───────────────────────────────────────────────
     name             = Column(String, index=True)
     contact          = Column(String, nullable=True)
@@ -56,6 +111,131 @@ class Customer(Base):
     consultations = relationship("Consultation", back_populates="customer",
                                  cascade="all, delete-orphan",
                                  order_by="Consultation.id.desc()")
+    
+    tenant = relationship("Company")
+    assigned_user = relationship("User")
+    contracts = relationship("Contract", back_populates="customer")
+    opportunities = relationship("Opportunity", back_populates="customer", cascade="all, delete-orphan")
+
+    @property
+    def assigned_user_name(self):
+        return self.assigned_user.name if self.assigned_user else None
+
+
+class Contract(Base):
+    """Customer's financial/vehicle contract."""
+    __tablename__ = "contracts"
+
+    __table_args__ = (
+        UniqueConstraint('source_opportunity_id', name='uq_contracts_source_opportunity_id'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False)
+    assigned_user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    
+    vehicle_model = Column(String, index=True, nullable=True)
+    product_type = Column(String, nullable=True)
+    capital = Column(String, nullable=True)
+    contract_date = Column(String, nullable=True)
+    term_months = Column(Integer, nullable=True)
+    expiry_date = Column(String, index=True, nullable=True)
+    dealer_info = Column(String, nullable=True)
+    insurance_active = Column(Boolean, default=False, server_default=text("0"))
+    supplies_work = Column(String, nullable=True)
+    estimate_image = Column(String, nullable=True)
+    
+    status = Column(String, default="ACTIVE", server_default=text("'ACTIVE'"), nullable=False)
+    memo = Column(String, nullable=True)
+    legacy_origin_customer_id = Column(Integer, unique=True, nullable=True)
+
+    source_opportunity_id = Column(Integer, ForeignKey("opportunities.id", ondelete="SET NULL"), index=True, nullable=True)
+    source_quote_id = Column(Integer, ForeignKey("quotes.id", ondelete="SET NULL"), index=True, nullable=True)
+    monthly_payment = Column(BigInteger, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow,
+                        onupdate=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
+
+    company = relationship("Company")
+    customer = relationship("Customer", back_populates="contracts")
+    assigned_user = relationship("User")
+
+    @property
+    def assigned_user_name(self):
+        return self.assigned_user.name if self.assigned_user else None
+
+
+class Opportunity(Base):
+    """Sales cycle for a customer (e.g. comparing quotes for a new vehicle)."""
+    __tablename__ = "opportunities"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False)
+    assigned_user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+
+    title = Column(String, nullable=False)
+    purpose = Column(String, nullable=True)
+    status = Column(String, default=OpportunityStatus.NEW.value, server_default=text("'NEW'"), nullable=False)
+    notes = Column(String, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow,
+                        onupdate=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
+
+    company = relationship("Company")
+    customer = relationship("Customer", back_populates="opportunities")
+    assigned_user = relationship("User")
+    quotes = relationship("Quote", back_populates="opportunity")
+
+    @property
+    def assigned_user_name(self):
+        return self.assigned_user.name if self.assigned_user else None
+
+
+class Quote(Base):
+    """A specific saved quote snapshot for an opportunity."""
+    __tablename__ = "quotes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    opportunity_id = Column(Integer, ForeignKey("opportunities.id", ondelete="RESTRICT"), nullable=False)
+    assigned_user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+
+    product_type = Column(String, nullable=False) # RENT, LEASE, INSTALLMENT, CASH
+    vehicle_name = Column(String, nullable=False)
+    
+    vehicle_price = Column(BigInteger, nullable=True)
+    discount_amount = Column(BigInteger, nullable=True)
+    deposit_amount = Column(BigInteger, nullable=True)
+    down_payment = Column(BigInteger, nullable=True)
+    monthly_payment = Column(BigInteger, nullable=True)
+    residual_value = Column(BigInteger, nullable=True)
+    
+    term_months = Column(Integer, nullable=True)
+    
+    interest_rate = Column(Numeric(5, 2), nullable=True)
+    residual_rate = Column(Numeric(5, 2), nullable=True)
+    annual_mileage = Column(Integer, nullable=True)
+    
+    capital_company = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    
+    extra = Column(JSON().with_variant(JSONB, 'postgresql'), default=dict, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow,
+                        onupdate=datetime.datetime.utcnow, server_default=func.now(), nullable=False)
+
+    company = relationship("Company", back_populates="quotes")
+    opportunity = relationship("Opportunity", back_populates="quotes")
+    assigned_user = relationship("User", back_populates="quotes")
+
+    @property
+    def assigned_user_name(self):
+        return self.assigned_user.name if self.assigned_user else None
 
 
 class Consultation(Base):

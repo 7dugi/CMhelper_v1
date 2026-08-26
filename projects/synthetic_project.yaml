@@ -1,0 +1,24 @@
+project_id: synthetic-project
+project_name: "Synthetic Project"
+project_root: "../synthetic_project_dir"
+repository: "username/synthetic_project_dir"
+default_branch: "main"
+development_branch: "feature/dev"
+
+governance_docs:
+  - "docs/TECHNICAL_PRINCIPLES.md"
+roadmap_path: "ROADMAP.md"
+current_status_path: "CURRENT_STATUS.md"
+todo_path: "TODO.md"
+
+supabase:
+  enabled: false
+
+vercel:
+  enabled: false
+
+browser_qa:
+  enabled: false
+
+test_commands: []
+build_commands: []

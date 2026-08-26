@@ -1,5 +1,42 @@
 # 기술 의사결정 기록 (Architecture Decision Record)
 
+### 2026-08-06 | Technical Principles 제정
+- **주제:** 전사 기술 원칙(Technical Principles) 문서화
+- **선택:** `docs/TECHNICAL_PRINCIPLES.md` 신설 및 13대 원칙 제정
+- **결정 이유:**
+  - AI 협업 시 일관된 아키텍처 원칙(Fail Fast, Thin Client 등)을 준수하게 하여 무분별한 리팩토링이나 외부 라이브러리 도입을 차단함.
+  - 모든 설계 및 구현에 기준이 되는 단일 진실 공급원 역할을 수행.
+
+### 2026-08-06 | Authentication: JWT Refresh Token 미도입
+- **주제:** JWT 인증 시 Refresh Token 구현 여부
+- **선택:** 이번 Sprint에서는 Access Token만 사용 (만료시간 2시간, SessionStorage 보관)
+- **배제:** Refresh Token 체계 도입
+- **결정 이유:**
+  - 복잡한 Refresh 로직 구현보다 B2B 도구에 맞는 핵심 인증 기능 우선 개발
+  - Refresh Token 도입은 Sprint B 이후로 연기하여 제품 출시 일정을 단축
+
+### 2026-08-06 | Authentication: Windows Agent 인증 예외 (폐기)
+- **주제:** Windows Agent 애플리케이션의 인증 처리
+- **선택:** 이번 Sprint에서 Agent는 JWT 인증 대상에서 제외하고 기존 API를 그대로 사용
+- **배제:** Agent에 웹과 동일한 JWT Auth 강제 적용
+- **결정 이유:**
+  - 현재 Agent 구조를 대대적으로 변경하지 않기 위함
+- 향후 멀티 회사/멀티 Agent 구조 도입 시 API Key 또는 Device Token 기반으로 안전하게 전환할 예정
+
+### 2026-08-26 | Authentication: Windows PC Agent 메모리 전용 JWT 인증 및 Fail-Closed 체계
+- **주제:** JWT 인증이 적용된 메시지 API와 Windows PC Agent 간의 호환성 및 보안
+- **선택:**
+  - 기존 메시지 API의 인증 예외를 복원하지 않고, Windows PC Agent에 `api_client.py`를 도입하여 `POST /api/auth/login`을 통한 명시적 로그인을 수행.
+  - JWT Access Token은 인스턴스/프로세스 메모리에만 보관하고, 비밀번호 입력값은 제출 즉시 위젯에서 삭제.
+  - 모든 메시지 대기열 조회, 상태 변경, 취소 요청에 Bearer 토큰을 첨부.
+  - 401/403 응답 시 즉시 메모리 토큰을 무효화하고 발송 중단 및 재로그인을 요구 (Fail-Closed).
+  - 서버 상태 업데이트(HTTP 200) 응답을 수신한 경우에만 로컬 UI 성공 처리 (가짜 성공 방지 및 서버 권한 보존).
+  - `requirements-build.txt` 및 `CMhelper_agent.spec`을 통해 `CMhelper_agent.exe`로의 패키징을 명시적으로 관리.
+  - Harness에 `cmhelper_pc_agent_auth` 검증 프로파일을 추가하여 Agent 단위 테스트와 격리 빌드를 검증.
+- **배제:** 인증 없는 메시지 API 재개방, Agent 소스·환경변수·로그에 비밀번호 또는 JWT 저장, 이번 작업에서 Device Token 체계 도입
+- **결정 이유:** 회사별 데이터 격리와 USER 담당자 범위를 약화하지 않으면서, 별도의 DB 마이그레이션이나 신규 인증 API 없이 현재 Agent의 보안 및 정합성을 확보.
+- **상태:** 구현 및 검증 완료 [IMPLEMENTED & VERIFIED]
+
 ### 2026-08-06 | Development Gate 도입
 - **주제:** Development Gate 도입
 - **선택:** Standard Gate + Architecture Gate 이중 절차
@@ -12,7 +49,6 @@
   - AI 간 작업 품질 표준화
   - 반복적인 계획 수정 감소
   - 코드와 문서의 정합성 유지
-
 
 ### 2026-08-05 | 자동차 금융 영업 특화 데이터 및 Recipe 기반 플랫폼 확장
 - **주제:** CMhelper 장기 제품 방향성 및 플랫폼 확장 아키텍처

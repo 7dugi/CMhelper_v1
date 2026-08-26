@@ -4,11 +4,14 @@ import {
   Plus, Search, X, Send, Trash2, Eye, EyeOff,
   ChevronRight, UploadCloud, CheckCircle, AlertCircle,
   Shield, RefreshCw, ServerCrash, ChevronUp, ChevronDown,
-  Star, Clock, Edit2, Calendar, MessageSquare
+  Star, Clock, Edit2, Calendar, MessageSquare, LogOut
 } from 'lucide-react';
 import './index.css';
 import * as api from './api';
 import MessageSender from './MessageSender';
+import AuthScreen from './auth/AuthScreen';
+import UserManagement from './UserManagement';
+import OpportunitySection, { PRODUCT_TYPE_LABELS } from './components/opportunities/OpportunityModule';
 
 /* ─── constants ─────────────────────────────────────────────────────── */
 const SYSTEM_KEYS = new Set([
@@ -81,8 +84,13 @@ function ExpiryBadge({ dateStr }) {
 /* ─── CustomerForm ───────────────────────────────────────────────────── */
 function CustomerForm({ formType, fields, initial, onSave, onClose }) {
   const visibleFields = useMemo(() => {
-    return fields.filter(fd => fd.target_type === 'common' || fd.target_type === formType);
-  }, [fields, formType]);
+    let fds = fields.filter(fd => fd.target_type === 'common' || fd.target_type === formType);
+    if (initial) {
+      const legacyContractFields = ['contract_car', 'contract_date', 'contract_months', 'months', 'expiry_date', 'capital', 'product_type', 'supplies_work', 'dealer_info', 'insurance_active', 'estimate_image'];
+      fds = fds.filter(fd => !legacyContractFields.includes(fd.name));
+    }
+    return fds;
+  }, [fields, formType, initial]);
 
   const [form, setForm] = useState(() => {
     const f = {};
@@ -94,7 +102,6 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
       else f[fd.name] = v ?? '';
     });
     if (!initial) {
-      
       if (formType === 'contracted') f.is_contracted = true;
     }
     return f;
@@ -253,14 +260,11 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
                       if (!files.length) return;
                       const newUrls = [...urls];
                       for (const file of files) {
-                        const formData = new FormData();
-                        formData.append('file', file);
                         try {
-                          const res = await fetch(`${api.BASE_URL}/api/upload`, { method: 'POST', body: formData });
-                          const data = await res.json();
-                          newUrls.push(data.url);
+                          const res = await api.uploadFile(file);
+                          if (res.url) newUrls.push(res.url);
                         } catch (err) {
-                          alert('이미지 업로드에 실패했습니다.');
+                          alert('이미지 업로드 실패: ' + err.message);
                         }
                       }
                       set(fd.name, newUrls);
@@ -271,9 +275,7 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
             );
           }
 
-
-
-          // ── Image Upload ─────────────────────────────────────────────
+          // ── Single Image ─────────────────────────────────────────────
           if (fd.field_type === 'image') {
             return (
               <div className="form-row" key={fd.id}>
@@ -287,16 +289,11 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
                   <input type="file" accept="image/*" className="form-input" style={{ padding:'.4rem' }} onChange={async (e) => {
                     const file = e.target.files[0];
                     if (!file) return;
-                    const formData = new FormData();
-                    formData.append('file', file);
                     try {
-                      const res = await fetch(`${api.BASE_URL}/api/upload`, {
-                        method: 'POST', body: formData
-                      });
-                      const data = await res.json();
-                      set(fd.name, data.url);
+                      const res = await api.uploadFile(file);
+                      if (res.url) set(fd.name, res.url);
                     } catch (err) {
-                      alert('이미지 업로드에 실패했습니다.');
+                      alert('이미지 업로드 실패: ' + err.message);
                     }
                   }} />
                 )}
@@ -304,34 +301,35 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
             );
           }
 
-          // ── Default: text / number / date ────────────────────────────
+          // ── Default text / number / date input ──────────────────────────
           return (
             <div className="form-row" key={fd.id}>
               <label className="form-label">
                 {fd.label}
-                {fd.name === 'name' && <span style={{ color:'var(--danger)', marginLeft:2 }}>*</span>}
+                {fd.name === 'name' && <span style={{ color:'var(--danger)' }}> *</span>}
               </label>
-              <input className="form-input"
-                type={fd.field_type === 'number' ? 'number' : fd.field_type === 'date' ? 'date' : 'text'}
-                placeholder={fd.field_type === 'date' ? '' : fd.label}
+              <input
+                type={fd.field_type === 'date' ? 'date' : fd.field_type === 'number' ? 'number' : 'text'}
+                className="form-input"
+                placeholder={fd.label}
                 value={form[fd.name] ?? ''}
-                onClick={e => { if (fd.field_type === 'date' && e.target.showPicker) e.target.showPicker(); }}
                 onChange={e => set(fd.name, e.target.value)}
-                required={fd.name === 'name'} />
+                required={fd.name === 'name'}
+              />
             </div>
           );
         })}
-      </div>
 
-      {!initial && formType === 'prospect' && (
-        <div className="modal-body" style={{ marginTop: 0, paddingTop: 0 }}>
+        {!initial && formType === 'prospect' && (
           <div className="form-row">
-            <label className="form-label">초기 상담 내역 (옵션)</label>
-            <textarea className="form-textarea" rows={4} placeholder="첫 상담 내용을 입력하세요 (날짜별 내역에 기록됩니다)"
-              value={initialConsultation} onChange={e => setInitialConsultation(e.target.value)} />
+            <label className="form-label">초기 상담 내용 (선택)</label>
+            <textarea className="form-textarea" rows={2}
+              placeholder="고객 등록과 동시에 기록할 상담 내용을 입력하세요"
+              value={initialConsultation}
+              onChange={e => setInitialConsultation(e.target.value)} />
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="modal-ft">
         <button type="button" className="btn btn-ghost" onClick={onClose}>취소</button>
@@ -343,23 +341,290 @@ function CustomerForm({ formType, fields, initial, onSave, onClose }) {
   );
 }
 
+const CONTRACT_PRODUCT_TYPES = [
+  { value: 'RENT', label: '장기렌트' },
+  { value: 'LEASE', label: '리스' },
+  { value: 'INSTALLMENT', label: '할부' },
+  { value: 'CASH', label: '일시불' },
+];
+
+const CONTRACT_STATUS_OPTIONS = [
+  { value: 'ACTIVE', label: '진행중' },
+  { value: 'COMPLETED', label: '정상종료' },
+  { value: 'CANCELLED', label: '취소/중도종료' },
+];
+
+/* ─── ContractForm ───────────────────────────────────────────────────── */
+function ContractForm({ initial, customerId, onSave, onClose, adminUsers = [], user, isConversion = false }) {
+  const [form, setForm] = useState(() => ({
+    vehicle_model: initial?.vehicle_model || '',
+    product_type: initial?.product_type || '',
+    capital: initial?.capital || '',
+    contract_date: initial?.contract_date || '',
+    term_months: initial?.term_months != null ? String(initial.term_months) : '',
+    monthly_payment: initial?.monthly_payment ?? '',
+    dealer_info: initial?.dealer_info || '',
+    insurance_active: initial?.insurance_active ?? false,
+    supplies_work: initial?.supplies_work || '',
+    memo: initial?.memo || '',
+    status: initial?.status || 'ACTIVE',
+    assigned_user_id: initial?.assigned_user_id || user?.id,
+  }));
+  const [saving, setSaving] = useState(false);
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  // Live expiry preview
+  const previewExpiry = computeExpiry(form.contract_date, form.term_months);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    try {
+      const data = {
+        vehicle_model: form.vehicle_model || null,
+        product_type: form.product_type || null,
+        capital: form.capital || null,
+        contract_date: form.contract_date || null,
+        term_months: form.term_months ? parseInt(form.term_months, 10) : null,
+        monthly_payment: form.monthly_payment !== '' && form.monthly_payment != null ? Number(form.monthly_payment) : null,
+        dealer_info: form.dealer_info || null,
+        insurance_active: !!form.insurance_active,
+        supplies_work: form.supplies_work || null,
+        memo: form.memo || null,
+        status: form.status || 'ACTIVE',
+      };
+
+      if (user?.role === 'OWNER' && form.assigned_user_id) {
+        data.assigned_user_id = Number(form.assigned_user_id);
+      }
+
+      await onSave(data);
+    } catch (err) {
+      // onSave throws on error, handled in caller
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="modal-body">
+        <div className="form-grid-2">
+          <div className="form-row">
+            <label className="form-label">차종 (모델명)</label>
+            <input
+              className="form-input"
+              value={form.vehicle_model}
+              onChange={e => set('vehicle_model', e.target.value)}
+              placeholder="예: 아반떼, GV80"
+              required
+            />
+          </div>
+          <div className="form-row">
+            <label className="form-label">상품 구분</label>
+            <select
+              className="form-select"
+              value={form.product_type}
+              onChange={e => set('product_type', e.target.value)}
+            >
+              <option value="">— 선택 —</option>
+              {CONTRACT_PRODUCT_TYPES.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+              {form.product_type && !CONTRACT_PRODUCT_TYPES.some(opt => opt.value === form.product_type) && (
+                <option value={form.product_type}>{form.product_type}</option>
+              )}
+            </select>
+          </div>
+        </div>
+
+        <div className="form-grid-2">
+          <div className="form-row">
+            <label className="form-label">계약일</label>
+            <input
+              type="date"
+              className="form-input"
+              value={form.contract_date}
+              onChange={e => set('contract_date', e.target.value)}
+            />
+          </div>
+          <div className="form-row">
+            <label className="form-label">계약 기간 (개월)</label>
+            <select
+              className="form-select"
+              value={form.term_months}
+              onChange={e => set('term_months', e.target.value)}
+            >
+              <option value="">— 선택 —</option>
+              <option value="12">12개월</option>
+              <option value="24">24개월</option>
+              <option value="36">36개월</option>
+              <option value="48">48개월</option>
+              <option value="60">60개월</option>
+              {form.term_months && !['12', '24', '36', '48', '60'].includes(String(form.term_months)) && (
+                <option value={String(form.term_months)}>{form.term_months}개월</option>
+              )}
+            </select>
+          </div>
+        </div>
+
+        <div className="form-row">
+          <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Calendar size={13} /> 만기일 <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(자동 계산)</span>
+          </label>
+          <div className={`computed-field ${previewExpiry ? '' : 'empty'}`}>
+            {previewExpiry || '계약일과 개월수를 입력하면 자동 계산됩니다'}
+          </div>
+        </div>
+
+        <div className="form-grid-2">
+          <div className="form-row">
+            <label className="form-label">캐피탈</label>
+            <input
+              className="form-input"
+              value={form.capital}
+              onChange={e => set('capital', e.target.value)}
+              placeholder="예: 현대캐피탈, KB캐피탈"
+            />
+          </div>
+          <div className="form-row">
+            <label className="form-label">월 납입금</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="예: 500,000"
+              value={form.monthly_payment !== '' && form.monthly_payment != null ? Number(form.monthly_payment).toLocaleString() : ''}
+              onChange={e => {
+                const num = parseInt(e.target.value.replace(/[^0-9]/g, ''), 10);
+                set('monthly_payment', isNaN(num) ? '' : num);
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="form-grid-2">
+          <div className="form-row">
+            <label className="form-label">딜러 정보</label>
+            <input
+              className="form-input"
+              value={form.dealer_info}
+              onChange={e => set('dealer_info', e.target.value)}
+              placeholder="예: 강남지점 홍길동"
+            />
+          </div>
+          <div className="form-row">
+            <label className="form-label">계약 상태</label>
+            <select
+              className="form-select"
+              value={form.status}
+              onChange={e => set('status', e.target.value)}
+            >
+              {CONTRACT_STATUS_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="form-row">
+          <label className="form-label">용품 작업</label>
+          <input
+            className="form-input"
+            value={form.supplies_work}
+            onChange={e => set('supplies_work', e.target.value)}
+            placeholder="예: 썬팅(전면/측후면), 블랙박스 2채널"
+          />
+        </div>
+
+        <div className="form-row" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--bg-input)', padding:'0.7rem 0.95rem', borderRadius:'var(--radius-md)', border:'1px solid var(--border)' }}>
+          <label className="form-label" style={{ marginBottom:0 }}>보험 가입 여부</label>
+          <label className="toggle">
+            <input type="checkbox" checked={!!form.insurance_active}
+              onChange={e => set('insurance_active', e.target.checked)} />
+            <span className="track" />
+          </label>
+        </div>
+
+        <div className="form-row">
+          <label className="form-label">계약 메모</label>
+          <textarea
+            className="form-textarea"
+            rows={2}
+            value={form.memo}
+            onChange={e => set('memo', e.target.value)}
+            placeholder="계약 관련 메모"
+          />
+        </div>
+
+        {user?.role === 'OWNER' && (
+          <div className="form-row">
+            <label className="form-label">담당자 지정 (OWNER 전용)</label>
+            <select className="form-select" value={form.assigned_user_id} onChange={e => set('assigned_user_id', parseInt(e.target.value, 10))}>
+              <option value={user?.id}>{user?.name} (본인)</option>
+              {adminUsers.map(u => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      <div className="modal-ft">
+        <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>취소</button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>
+          {saving ? '저장 중…' : '✓ 저장하기'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 /* ─── Dashboard ──────────────────────────────────────────────────────── */
-function Dashboard({ activeFields }) {
+function Dashboard({ activeFields, user }) {
   const [customers, setCustomers] = useState([]);
   const [search, setSearch]       = useState('');
   const [filter, setFilter]       = useState('all');
   const [loading, setLoading]     = useState(false);
   const [selected, setSelected]   = useState(null);
   const [modalMode, setModalMode] = useState(null);
+  const [contractModalMode, setContractModalMode] = useState(null);
+  const [selectedContract, setSelectedContract] = useState(null);
+  const [conversionContext, setConversionContext] = useState(null);
   const [noteText, setNoteText]   = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'id', dir: 'desc' });
+  const [customerContracts, setCustomerContracts] = useState([]);
+  
+  const [workspaceFilter, setWorkspaceFilter] = useState('me');
+  const [adminUsers, setAdminUsers] = useState([]);
+
+  useEffect(() => {
+    if (selected?.id) {
+      api.getContracts(selected.id).then(setCustomerContracts).catch(() => setCustomerContracts([]));
+    } else {
+      setCustomerContracts([]);
+    }
+  }, [selected?.id]);
+
+  useEffect(() => {
+    if (user?.role === 'OWNER') {
+      api.getUsers().then(users => {
+        setAdminUsers(users.filter(u => u.status === 'ACTIVE' && u.id !== user.id));
+      }).catch(() => {});
+    }
+  }, [user]);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setCustomers(await api.getCustomers('')); }
+    let filterParams = '';
+    if (workspaceFilter === 'all') filterParams = 'scope=all';
+    else if (workspaceFilter !== 'me') filterParams = `assigned_user_id=${workspaceFilter}`;
+
+    try { setCustomers(await api.getCustomers('', filterParams)); }
     catch { /* backend not ready */ }
     finally { setLoading(false); }
-  }, []);
+  }, [workspaceFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -379,13 +644,13 @@ function Dashboard({ activeFields }) {
     const prospects   = customers.filter(c => c.is_prospect).length;
     const contracted  = customers.filter(c => !c.is_prospect).length;
     const expiry1m    = customers.filter(c => {
-      if (!c.expiry_date) return false;
-      const e = new Date(c.expiry_date);
+      if (!c.nearest_expiry) return false;
+      const e = new Date(c.nearest_expiry);
       return e >= now && e <= add(now,1);
     }).length;
     const expiry3m    = customers.filter(c => {
-      if (!c.expiry_date) return false;
-      const e = new Date(c.expiry_date);
+      if (!c.nearest_expiry) return false;
+      const e = new Date(c.nearest_expiry);
       return e >= now && e <= add(now,3);
     }).length;
     return { total: customers.length, prospects, contracted, expiry1m, expiry3m };
@@ -416,22 +681,22 @@ function Dashboard({ activeFields }) {
     } else if (filter === 'expiry_1m') {
       const limit = add(now,1);
       list = list.filter(c => {
-        if (!c.expiry_date) return false;
-        const e = new Date(c.expiry_date);
+        if (!c.nearest_expiry) return false;
+        const e = new Date(c.nearest_expiry);
         return e >= now && e <= limit;
       });
     } else if (filter === 'expiry_3m') {
       const limit = add(now,3);
       list = list.filter(c => {
-        if (!c.expiry_date) return false;
-        const e = new Date(c.expiry_date);
+        if (!c.nearest_expiry) return false;
+        const e = new Date(c.nearest_expiry);
         return e >= now && e <= limit;
       });
     } else if (filter === 'expiry_6m') {
       const limit = add(now,6);
       list = list.filter(c => {
-        if (!c.expiry_date) return false;
-        const e = new Date(c.expiry_date);
+        if (!c.nearest_expiry) return false;
+        const e = new Date(c.nearest_expiry);
         return e >= now && e <= limit;
       });
     }
@@ -440,6 +705,10 @@ function Dashboard({ activeFields }) {
     list.sort((a, b) => {
       let va = getVal(a, { name: sortConfig.key });
       let vb = getVal(b, { name: sortConfig.key });
+      if (sortConfig.key === 'expiry_date') {
+        va = a.nearest_expiry;
+        vb = b.nearest_expiry;
+      }
       if (va == null) va = '';
       if (vb == null) vb = '';
       if (va < vb) return sortConfig.dir === 'asc' ? -1 : 1;
@@ -496,6 +765,85 @@ function Dashboard({ activeFields }) {
     load();
   };
 
+  const handleStartConversion = (opportunity, quote) => {
+    if (!opportunity || opportunity.status !== 'WON') return;
+
+    setConversionContext({
+      opportunityId: opportunity.id,
+      sourceQuoteId: quote ? quote.id : null,
+    });
+
+    if (quote) {
+      setSelectedContract({
+        vehicle_model: quote.vehicle_name || '',
+        product_type: quote.product_type || '',
+        capital: quote.capital_company || '',
+        term_months: quote.term_months ? String(quote.term_months) : '',
+        monthly_payment: quote.monthly_payment ?? '',
+        memo: quote.notes || '',
+        contract_date: '',
+        dealer_info: '',
+        insurance_active: false,
+        supplies_work: '',
+        status: 'ACTIVE',
+        assigned_user_id: quote.assigned_user_id || opportunity.assigned_user_id || user?.id,
+      });
+    } else {
+      setSelectedContract({
+        vehicle_model: '',
+        product_type: '',
+        capital: '',
+        term_months: '',
+        monthly_payment: '',
+        memo: '',
+        contract_date: '',
+        dealer_info: '',
+        insurance_active: false,
+        supplies_work: '',
+        status: 'ACTIVE',
+        assigned_user_id: opportunity.assigned_user_id || user?.id,
+      });
+    }
+    setContractModalMode('convert');
+  };
+
+  const handleSaveContract = async (data) => {
+    try {
+      if (contractModalMode === 'create') {
+        await api.createContract({ ...data, customer_id: selected.id });
+      } else if (contractModalMode === 'convert') {
+        const payload = {
+          ...data,
+          source_quote_id: conversionContext?.sourceQuoteId || null,
+        };
+        await api.convertOpportunityToContract(conversionContext.opportunityId, payload);
+      } else {
+        await api.updateContract(selectedContract.id, data);
+      }
+      setContractModalMode(null);
+      setSelectedContract(null);
+      setConversionContext(null);
+      api.getContracts(selected.id).then(setCustomerContracts).catch(() => setCustomerContracts([]));
+      load();
+    } catch (err) {
+      const errStr = String(err?.message || '') + ' ' + String(err?.status || '');
+      let msg = '계약 저장 중 오류가 발생했습니다.';
+      if (errStr.includes('409') || errStr.includes('already converted')) {
+        msg = '이미 계약으로 전환된 상담입니다.';
+      } else if (errStr.includes('403') || errStr.includes('Forbidden')) {
+        msg = '해당 상담의 계약 전환 권한이 없습니다.';
+      } else if (errStr.includes('404') || errStr.includes('not found')) {
+        msg = '상담 또는 견적 정보를 찾을 수 없습니다.';
+      } else if (errStr.includes('422') || errStr.includes('400') || errStr.includes('Invalid') || errStr.includes('validation') || errStr.includes('must be')) {
+        msg = '입력한 계약 정보를 확인해 주세요.';
+      } else if (err?.message) {
+        msg = err.message;
+      }
+      alert(msg);
+      throw err;
+    }
+  };
+
   const FILTERS = [
     { id:'all',        label:'전체',           cls:''           },
     { id:'contracted', label:'기고객',         cls:'ft-contracted', icon:<CheckCircle size={12}/> },
@@ -542,7 +890,24 @@ function Dashboard({ activeFields }) {
           <h1>고객 데이터베이스</h1>
           <p>고객 정보를 등록하고 실시간 상담 내역을 기록합니다.</p>
         </div>
-        <div style={{ display:'flex', gap:'0.5rem' }}>
+        <div style={{ display:'flex', gap:'0.5rem', alignItems: 'center' }}>
+          {user?.role === 'OWNER' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '1rem' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-2)', fontWeight: 500 }}>담당자:</label>
+              <select 
+                className="input" 
+                style={{ padding: '0.3rem 1.5rem 0.3rem 0.5rem', fontSize: '0.9rem', width: 'auto', minHeight: '32px' }}
+                value={workspaceFilter}
+                onChange={e => setWorkspaceFilter(e.target.value)}
+              >
+                <option value="me">내 고객</option>
+                {adminUsers.map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+                <option value="all">전체 고객</option>
+              </select>
+            </div>
+          )}
           <button className="btn btn-primary" onClick={() => setModalMode('create_contracted')}><Plus size={16}/> 기고객 등록</button>
           <button className="btn btn-secondary" onClick={() => setModalMode('create_prospect')}><Plus size={16}/> 상담고객 등록</button>
         </div>
@@ -619,6 +984,7 @@ function Dashboard({ activeFields }) {
                       </th>
                     );
                   })}
+                  {user?.role === 'OWNER' && <th>담당자</th>}
                   <th style={{ textAlign:'center' }}>관리</th>
                 </tr>
               </thead>
@@ -628,7 +994,7 @@ function Dashboard({ activeFields }) {
                     {activeFields.map(f => {
                       const v = getVal(c, f);
                       // Special renders
-                      if (f.name === 'expiry_date') return <td key={f.id}><ExpiryBadge dateStr={v} /></td>;
+                      if (f.name === 'expiry_date') return <td key={f.id}><ExpiryBadge dateStr={c.nearest_expiry} /></td>;
                       if (f.name === 'is_prospect') return (
                         <td key={f.id}>
                           {renderProspectBadge(v)}
@@ -650,6 +1016,7 @@ function Dashboard({ activeFields }) {
                       if (f.name === 'contract_months' && v) return <td key={f.id}>{v}개월</td>;
                       return <td key={f.id} title={v ?? ''}>{v != null ? String(v) : '—'}</td>;
                     })}
+                    {user?.role === 'OWNER' && <td>{c.assigned_user_name || '—'}</td>}
                     <td onClick={e => e.stopPropagation()} style={{ textAlign:'center' }}>
                       <div style={{ display:'flex', gap:'.4rem', justifyContent:'center' }}>
                         <button className="btn btn-ghost btn-sm" onClick={e => openEdit(c, e)}>수정</button>
@@ -691,13 +1058,13 @@ function Dashboard({ activeFields }) {
             <div className="drawer-body">
               <div className="info-grid">
                   {activeFields.filter(f => f.target_type === 'common' || f.target_type === (!selected.is_contracted ? 'prospect' : 'contracted')).map(f => {
+                    if (['contract_car', 'contract_date', 'contract_months', 'months', 'expiry_date', 'capital', 'product_type', 'supplies_work', 'dealer_info', 'insurance_active'].includes(f.name)) return null;
                     const v = getVal(selected, f);
                     return (
                       <div className="info-row" key={f.id}>
                         <span className="lbl">{f.label}</span>
                         <span className="val">
-                          {f.name === 'expiry_date' ? <ExpiryBadge dateStr={v} />
-                           : f.field_type === 'image' ? (v ? <a href={`${api.BASE_URL}${v}`} target="_blank" rel="noreferrer"><img src={`${api.BASE_URL}${v}`} alt="첨부" style={{ maxHeight: 150, borderRadius: 8, border:'1px solid var(--border)', marginTop: 4, display: 'block' }} /></a> : <span style={{color:'var(--text-3)'}}>미첨부</span>)
+                           {f.field_type === 'image' ? (v ? <a href={`${api.BASE_URL}${v}`} target="_blank" rel="noreferrer"><img src={`${api.BASE_URL}${v}`} alt="첨부" style={{ maxHeight: 150, borderRadius: 8, border:'1px solid var(--border)', marginTop: 4, display: 'block' }} /></a> : <span style={{color:'var(--text-3)'}}>미첨부</span>)
                            : f.field_type === 'image_gallery' ? (
                                v && v.length > 0 ? (
                                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: 4 }}>
@@ -712,13 +1079,57 @@ function Dashboard({ activeFields }) {
                            : f.name === 'is_prospect' ? renderProspectBadge(v)
                            : f.name === 'is_contracted' ? (v ? <span className="badge badge-ok"><CheckCircle size={10}/> 기계약고객</span> : <span className="badge badge-no">미계약고객</span>)
                            : f.field_type === 'boolean' ? <span className={v ? 'badge badge-ok' : 'badge badge-no'}>{f.name === 'insurance_active' ? (v ? '가입' : '미가입') : (v ? 'Y' : 'N')}</span>
-                           : f.name === 'contract_months' && v ? `${v}개월`
                            : v != null ? String(v) : '—'}
                         </span>
                       </div>
                     );
                   })}
                 </div>
+
+                <OpportunitySection
+                  customerId={selected.id}
+                  user={user}
+                  adminUsers={adminUsers}
+                  onConvertToContract={handleStartConversion}
+                />
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'1rem' }}>
+                  <h3 style={{ fontSize:'.9rem', fontWeight:600, margin: 0 }}>📄 계약 내역</h3>
+                  <button className="btn btn-secondary btn-sm" onClick={() => { setContractModalMode('create'); setSelectedContract(null); setConversionContext(null); }} style={{ padding: '0.2rem 0.6rem' }}><Plus size={12}/> 계약 추가</button>
+                </div>
+                {customerContracts.length === 0 ? (
+                  <p style={{ color:'var(--text-3)', fontSize:'.82rem', textAlign:'center', padding:'1rem 0' }}>등록된 계약이 없습니다.</p>
+                ) : (
+                  <div className="contracts-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                    {customerContracts.map(contract => (
+                      <div key={contract.id} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem', background: 'var(--bg-input)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 600 }}>{contract.vehicle_model || '-'}</span>
+                            {contract.status === 'COMPLETED' ? <span className="badge badge-ok">상태: 정상종료</span> :
+                             contract.status === 'CANCELLED' ? <span className="badge badge-expired">상태: 취소/중도종료</span> : 
+                             <span className="badge badge-sys">상태: 진행중</span>}
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <ExpiryBadge dateStr={contract.expiry_date} />
+                            {(user?.role === 'OWNER' || contract.status === 'ACTIVE') && (
+                              <button className="btn btn-ghost btn-sm" style={{ padding: '0.2rem' }} onClick={() => { setSelectedContract(contract); setContractModalMode('edit'); setConversionContext(null); }}><Edit2 size={12}/></button>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-2)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                          <div><strong>계약일:</strong> {contract.contract_date || '-'}</div>
+                          <div><strong>기간:</strong> {contract.term_months ? `${contract.term_months}개월` : '-'}</div>
+                          <div><strong>만기일:</strong> {contract.expiry_date || '-'}</div>
+                          <div><strong>캐피탈:</strong> {contract.capital || '-'}</div>
+                          <div><strong>상품:</strong> {PRODUCT_TYPE_LABELS[contract.product_type] || contract.product_type || '-'}</div>
+                          <div><strong>월 납입금:</strong> {contract.monthly_payment ? `${Number(contract.monthly_payment).toLocaleString()}원` : '-'}</div>
+                          <div style={{ gridColumn: '1 / -1', marginTop: 4, color: 'var(--text-3)' }}><strong>담당자:</strong> {contract.assigned_user_name || '-'}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <h3 style={{ fontSize:'.9rem', fontWeight:600, marginBottom:'1rem' }}>📋 상담 일지</h3>
               <form className="consult-form" onSubmit={handleAddNote}>
                 <input className="form-input" placeholder="새 상담 내용 입력 후 전송…"
@@ -774,6 +1185,27 @@ function Dashboard({ activeFields }) {
           </div>
         </div>
       )}
+
+      {/* Contract Create / Edit / Convert modal */}
+      {contractModalMode && (
+        <div className="overlay" onClick={() => { setContractModalMode(null); setSelectedContract(null); setConversionContext(null); }}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-hd">
+              <h2>{contractModalMode === 'create' ? '새 계약 추가' : contractModalMode === 'convert' ? '계약 전환' : '계약 수정'}</h2>
+              <button className="btn btn-ghost btn-icon" onClick={() => { setContractModalMode(null); setSelectedContract(null); setConversionContext(null); }}><X size={16}/></button>
+            </div>
+            <ContractForm
+              initial={contractModalMode === 'create' ? null : selectedContract}
+              customerId={selected?.id}
+              onSave={handleSaveContract}
+              onClose={() => { setContractModalMode(null); setSelectedContract(null); setConversionContext(null); }}
+              adminUsers={adminUsers}
+              user={user}
+              isConversion={contractModalMode === 'convert'}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -787,7 +1219,7 @@ function ExcelImport({ activeFields }) {
   const [mapping, setMapping] = useState({});
   const [result, setResult]   = useState(null);
   const [drag, setDrag]       = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]     = useState(false);
   const [error, setError]     = useState('');
   const fileRef = useRef();
 
@@ -1132,6 +1564,28 @@ export default function App() {
   const [loading, setLoading]   = useState(true);
   const [connErr, setConnErr]   = useState('');
 
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  const checkAuth = useCallback(async () => {
+    setAuthLoading(true);
+    try {
+      if (sessionStorage.getItem('cmhelper_token')) {
+        const u = await api.getAuthMe();
+        setUser(u);
+      } else {
+        setUser(null);
+      }
+    } catch (err) {
+      sessionStorage.removeItem('cmhelper_token');
+      setUser(null);
+    } finally {
+      setAuthLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { checkAuth(); }, [checkAuth]);
+
   const loadFields = useCallback(async () => {
     setLoading(true); setConnErr('');
     try {
@@ -1143,14 +1597,24 @@ export default function App() {
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { loadFields(); }, [loadFields]);
+  useEffect(() => {
+    if (user) {
+      loadFields();
+    }
+  }, [user, loadFields]);
 
-  if (loading) return (
+  const LoadingScreen = ({ text }) => (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:'1rem' }}>
       <div style={{ width:48, height:48, background:'linear-gradient(135deg,#6366f1,#8b5cf6)', borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--font-display)', fontWeight:800, fontSize:'1.1rem', color:'#fff', boxShadow:'0 4px 20px rgba(99,102,241,.4)' }}>CM</div>
-      <p style={{ color:'var(--text-2)', fontSize:'.9rem' }}>서버에 연결하는 중…</p>
+      <p style={{ color:'var(--text-2)', fontSize:'.9rem' }}>{text}</p>
     </div>
   );
+
+  if (authLoading) return <LoadingScreen text="사용자 확인 중…" />;
+  
+  if (!user) return <AuthScreen onLoginSuccess={checkAuth} />;
+
+  if (loading) return <LoadingScreen text="서버에 연결하는 중…" />;
 
   if (connErr) return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:'1.25rem', padding:'2rem', textAlign:'center' }}>
@@ -1165,8 +1629,11 @@ export default function App() {
     { id:'dashboard', label:'고객 대시보드', icon:<Users size={18}/> },
     { id:'excel',     label:'엑셀 업로드',   icon:<FileSpreadsheet size={18}/> },
     { id:'message',   label:'메시지 발송',   icon:<MessageSquare size={18}/> },
-    { id:'settings',  label:'항목 설정',      icon:<Settings size={18}/> },
   ];
+  if (user?.role === 'OWNER') {
+    TABS.push({ id:'settings',  label:'항목 설정',      icon:<Settings size={18}/> });
+    TABS.push({ id:'users',     label:'사용자 관리',    icon:<Shield size={18}/> });
+  }
 
   return (
     <div className="layout">
@@ -1184,20 +1651,31 @@ export default function App() {
             </div>
           ))}
         </nav>
-        <div className="sidebar-foot">
-          <div className="foot-avatar"><Database size={16} style={{ color:'var(--success)' }}/></div>
-          <div className="foot-info">
-            <strong>관리자</strong>
-            <span>로컬 모드</span>
+        <div className="sidebar-foot" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.8rem 1rem', borderTop: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="foot-avatar"><Database size={16} style={{ color:'var(--success)' }}/></div>
+            <div className="foot-info">
+              <strong>{user.name}</strong>
+              <span>{user.role === 'OWNER' ? '최고 관리자' : (user.role === 'ADMIN' ? '관리자' : '일반 사용자')}</span>
+            </div>
           </div>
+          <button 
+            className="btn btn-ghost btn-icon" 
+            title="로그아웃" 
+            onClick={() => { sessionStorage.removeItem('cmhelper_token'); setUser(null); }}
+            style={{ color: 'var(--text-3)' }}
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </aside>
 
       <main className="main">
-        {tab === 'dashboard' && <Dashboard activeFields={active} />}
+        {tab === 'dashboard' && <Dashboard activeFields={active} user={user} />}
         {tab === 'excel'     && <ExcelImport activeFields={active} />}
         {tab === 'message'   && <MessageSender />}
-        {tab === 'settings'  && <FieldSettings fields={fields} onRefresh={loadFields} />}
+        {tab === 'settings'  && user?.role === 'OWNER' && <FieldSettings fields={fields} onRefresh={loadFields} />}
+        {tab === 'users'     && user?.role === 'OWNER' && <UserManagement />}
       </main>
     </div>
   );

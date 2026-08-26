@@ -1,4 +1,4 @@
-# ── Python ───────────────────────────────────────────────────────────────────
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
@@ -7,37 +7,48 @@ venv/
 ENV/
 env/
 
-# ── Database ─────────────────────────────────────────────────────────────────
+# Database
 *.db
 *.sqlite
 *.sqlite3
 CMhelper_web/backend/data/
 
-# ── Node / Frontend ───────────────────────────────────────────────────────────
+# Node / Frontend
 node_modules/
 dist/
 CMhelper_web/frontend/dist/
 .cache/
 
-# ── 환경 변수 ─────────────────────────────────────────────────────────────────
+# Environment Variables
 .env
 .env.*
 !.env.example
 
-# ── IDE / OS ──────────────────────────────────────────────────────────────────
+# IDE / OS
 .vscode/
 .idea/
 .antigravity/
 .DS_Store
 Thumbs.db
 
-# ── 업로드 파일 ─────────────────────────────────────────────────────────────────
+# Uploads
 uploads/
 
-# ── 빌드 결과물 (Build / Executables) ─────────────────────────────────────────
+# Build / Executables
 *.exe
 *.pkg
 *.toc
 build/
 logs/
 *.log
+automation/mock_bin/
+
+# Harness Runtime & Evidence
+automation/runtime/
+!automation/runtime/.gitkeep
+automation/reports/
+!automation/reports/.gitkeep
+automation/screenshots/
+!automation/screenshots/.gitkeep
+
+.vercel

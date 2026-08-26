@@ -21,6 +21,7 @@ CMhelper는 단순한 "카카오톡 자동 발송 프로그램"을 넘어, 장�
     - 카나리아 테스트 연동 및 Remote Config 도입
     - 발송 상태 UI 직관화 및 Agent 자동 업데이트
     - *(현재 범위 제외: Background Agent, Windows Service 도입, PC 자동 시작 및 무인 완전 자동 예약 발송)*
+    - *(인증 정책: 웹은 JWT 인증을 도입하나, 기존 Windows Agent는 호환성을 위해 당분간 기존 API를 인증 없이 사용하며 향후 API Key/Device Token 기반으로 전환 예정)*
 *   **P2: Sales Funnel + Stage History + Loss Reason** (영업 단계 트래킹 및 전환율/이탈 분석)
 *   **P3: Recipe / Template** (업종/차종/고객군별 Best Practice 콘텐츠 제공)
 *   **P4: Inventory / Product** (금융사 및 제조사 실시간 재고/상품 조건 매핑)
@@ -33,6 +34,7 @@ CMhelper는 단순한 "카카오톡 자동 발송 프로그램"을 넘어, 장�
 ## 3. 프로젝트 관리 및 운영 원칙
 
 *   **중요 기능은 `docs/DEVELOPMENT_GATE.md`의 Architecture Gate를 통과한 후 개발합니다.**
+*   **모든 설계 및 구현은 `docs/TECHNICAL_PRINCIPLES.md`의 핵심 기술 원칙(Fail-Fast, Server First 등)을 준수합니다.**
 *   **Git Workflow 공식 운영 정책**: Git Flow Lite (`main`, `feature`, `docs`, `chore` 브랜치 분리 운용)
     - 상세 정책은 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)를 참조하십시오.
     - AI 협업 시에도 본 정책을 반드시 준수해야 합니다.

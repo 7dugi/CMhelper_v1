@@ -1,0 +1,79 @@
+# Phase 2C Execution Report (Production)
+
+This document records the actual execution results of the Phase 2C Contract Migration on the Production Supabase Database.
+
+## Execution Summary
+- **Execution Target:** Supabase Production Database (`postgres`, `public`)
+- **Status:** COMPLETED SUCCESSFULLY
+- **Initial contracts count:** 0
+- **Final contracts count:** 6
+- **Expected contracts count:** 6
+
+## Migration Details & Bug Fixes during Execution
+
+The execution encountered two consecutive issues caused by missing `DEFAULT` definitions for NOT NULL columns. The execution failed fast without corrupting data, and the schema was patched accordingly.
+
+### Attempt 1
+- **Error:** `null value in column "status" violates not-null constraint`
+- **Cause:** `status` had `NOT NULL` but lacked a `DEFAULT` in the actual DB schema definition at execution time.
+- **Result:** INSERT failed. `contracts` table remained empty.
+- **Resolution:** Added `DEFAULT 'ACTIVE'` to the `status` column.
+
+### Attempt 2
+- **Error:** `null value in column "created_at" violates not-null constraint`
+- **Cause:** `created_at` (and `updated_at`) had `NOT NULL` but lacked `DEFAULT` expressions.
+- **Result:** INSERT failed. `contracts` table remained empty.
+- **Resolution:** Added `DEFAULT (now() AT TIME ZONE 'utc')` to `created_at` and `updated_at`. Additionally, identified and patched `insurance_active` to have `DEFAULT FALSE`.
+
+### Attempt 3 (Final Execution)
+- **Result:** SUCCESS
+- **Backfill Rows Created:** 6
+
+## Backfill Mapping Verification
+The migration preserved 1:1 legacy origin relationships exactly as expected for all 6 eligible customers:
+
+| legacy_origin_customer_id | customer_id | vehicle_model | contract_date | term_months | expiry_date |
+|---------------------------|-------------|---------------|---------------|-------------|-------------|
+| 1                         | 1           | SM3           | 2014-04-01    | 48          | 2018-04-01  |
+| 2                         | 2           | 모닝            | 2014-05-26    | 36          | 2017-05-26  |
+| 3                         | 3           | 스포티지           | 2014-05-01    | 55          | 2018-12-01  |
+| 4                         | 4           | K5 lpg        | 2014-06-01    | 48          | 2018-06-01  |
+| 5                         | 5           | 그랜저 LPG        | 2014-06-23    | 48          | 2018-06-23  |
+| 6                         | 6           | NULL          | 2023-09-14    | 36          | 2026-09-14  |
+
+**Note on ID Sequence:** The actual generated `contracts.id` values are 3, 4, 5, 6, 7, 8. IDs 1 and 2 were consumed by the sequence generator during the failed Attempt 1 and 2 transactions. This is standard PostgreSQL behavior and no IDs were reassigned.
+
+## Data Consistency Checks
+- **Tenant Mismatch Count:** 0
+- **Expiry Mismatch Count:** 0
+- **Invalid FK Count:** 0
+- **Legacy NULL Preservation:** Preserved as NULL (e.g., Customer 6 `vehicle_model`). No artificial values ("Unknown") were injected.
+
+## Schema Idempotency
+- **Mechanism:** `CREATE UNIQUE INDEX uq_contracts_legacy_origin ON contracts(legacy_origin_customer_id);`
+- **Enforcement:** `ON CONFLICT (legacy_origin_customer_id) DO NOTHING` in the INSERT statement guarantees idempotency.
+
+## Production Foreign Key Status
+- `customer_id` -> `customers.id`: `NO ACTION` (Provides equivalent protection to `RESTRICT` for our hard-delete protection purposes in non-deferrable configurations).
+- `assigned_user_id` -> `users.id`: `NO ACTION` (Provides equivalent protection to `RESTRICT` for our hard-delete protection purposes in non-deferrable configurations).
+- `company_id` -> `companies.id`: `CASCADE`. 
+  - *Post-Migration Review Item:* `company_id` cascading delete might violate financial record retention if a company is hard-deleted. A soft-delete lifecycle (ACTIVE/ARCHIVED) for companies should be enforced.
+
+## Rollback Availability
+Not required as the migration succeeded. However, since the legacy fields on the `customers` table were left untouched, rolling back simply involves a **logical rollback**: reverting the application read path back to the legacy structure. 
+**Note:** Dropping the `contracts` table is a destructive operation that requires backup, verification of usage, and explicit approval. It is not an automatic rollback procedure.
+
+## Phase 2C.2 Production Index Maintenance
+On August 11, 2026, the following missing indexes were successfully added to the Production DB:
+- `idx_contracts_company_id` on `contracts(company_id)`
+- `idx_contracts_customer_id` on `contracts(customer_id)`
+- `idx_contracts_assigned_user_id` on `contracts(assigned_user_id)`
+
+**Post-Maintenance Verification:**
+- Contracts row count: 6 (maintained)
+- Duplicate legacy origin count: 0 (no data corruption)
+- Total contract indexes: 7
+
+## Next Steps (Phase 2D/E)
+- Update frontend UI to consume the `/contracts` endpoint (Phase 2D).
+- Drop legacy contract fields from `customers` once the new API is fully verified in the UI (Phase 2E).

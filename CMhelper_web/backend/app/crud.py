@@ -6,11 +6,76 @@ import datetime
 import uuid
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
+import bcrypt
 from . import models, schemas
+
+def get_password_hash(password: str) -> str:
+    pwd_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(pwd_bytes, salt)
+    return hashed_password.decode('utf-8')
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    try:
+        password_byte_enc = plain_password.encode('utf-8')
+        hashed_password_byte_enc = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(password_byte_enc, hashed_password_byte_enc)
+    except Exception:
+        return False
+
+# â”€â”€ Auth & Users â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+def get_or_create_default_company(db: Session, name: str, slug: str) -> models.Company:
+    company = db.query(models.Company).filter_by(slug=slug).first()
+    if company:
+        return company
+    try:
+        new_company = models.Company(name=name, slug=slug)
+        db.add(new_company)
+        db.commit()
+        db.refresh(new_company)
+        return new_company
+    except IntegrityError:
+        db.rollback()
+        # Concurrent creation handle
+        return db.query(models.Company).filter_by(slug=slug).first()
+
+def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
+    return db.query(models.User).filter_by(email=email).first()
+
+def create_user(db: Session, data: schemas.UserCreate, company_id: int, role: str, status: str) -> models.User:
+    hashed_password = get_password_hash(data.password)
+    user = models.User(
+        company_id=company_id,
+        email=data.email,
+        password_hash=hashed_password,
+        name=data.name,
+        role=role,
+        status=status,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+def get_users_by_company(db: Session, company_id: int) -> List[models.User]:
+    return db.query(models.User).filter(models.User.company_id == company_id).order_by(models.User.created_at.desc()).all()
+
+def get_user_by_id(db: Session, user_id: int) -> Optional[models.User]:
+    return db.query(models.User).filter(models.User.id == user_id).first()
+
+def update_user_status(db: Session, user_id: int, status: str) -> Optional[models.User]:
+    user = get_user_by_id(db, user_id)
+    if user:
+        user.status = status
+        db.commit()
+        db.refresh(user)
+    return user
+
 
 
 # â”€â”€ Expiry computation helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -159,9 +224,29 @@ def delete_field(db: Session, fid: str) -> bool:
 
 # â”€â”€ Customers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-def list_customers(db: Session, search: str = "",
-                   skip: int = 0, limit: int = 500) -> List[models.Customer]:
-    q = db.query(models.Customer)
+def list_customers(db: Session, company_id: int, assigned_user_id: Optional[int] = None,
+                   search: str = "", skip: int = 0, limit: int = 500) -> List[models.Customer]:
+    from sqlalchemy import func, case
+    today_str = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+
+    contracts_sq = db.query(
+        models.Contract.customer_id,
+        func.count(models.Contract.id).label("contract_count"),
+        func.min(
+            case(
+                (models.Contract.expiry_date >= today_str, models.Contract.expiry_date),
+                else_=None
+            )
+        ).label("nearest_expiry")
+    ).group_by(models.Contract.customer_id).subquery()
+
+    q = db.query(models.Customer, contracts_sq.c.contract_count, contracts_sq.c.nearest_expiry)\
+          .outerjoin(contracts_sq, models.Customer.id == contracts_sq.c.customer_id)\
+          .options(joinedload(models.Customer.assigned_user))\
+          .filter(models.Customer.company_id == company_id)
+
+    if assigned_user_id is not None:
+        q = q.filter(models.Customer.assigned_user_id == assigned_user_id)
     if search:
         like = f"%{search}%"
         q = q.filter(or_(
@@ -172,16 +257,49 @@ def list_customers(db: Session, search: str = "",
             models.Customer.dealer_info.ilike(like),
             models.Customer.memo.ilike(like),
         ))
-    return q.order_by(models.Customer.id.desc()).offset(skip).limit(limit).all()
+        
+    results = q.order_by(models.Customer.id.desc()).offset(skip).limit(limit).all()
+    customers = []
+    for c, cnt, exp in results:
+        c.contract_count = cnt or 0
+        c.nearest_expiry = exp
+        customers.append(c)
+    return customers
 
 
 def get_customer(db: Session, cid: int) -> Optional[models.Customer]:
-    return db.query(models.Customer).filter_by(id=cid).first()
+    from sqlalchemy import func, case
+    today_str = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+
+    contracts_sq = db.query(
+        models.Contract.customer_id,
+        func.count(models.Contract.id).label("contract_count"),
+        func.min(
+            case(
+                (models.Contract.expiry_date >= today_str, models.Contract.expiry_date),
+                else_=None
+            )
+        ).label("nearest_expiry")
+    ).group_by(models.Contract.customer_id).subquery()
+
+    row = db.query(models.Customer, contracts_sq.c.contract_count, contracts_sq.c.nearest_expiry)\
+            .outerjoin(contracts_sq, models.Customer.id == contracts_sq.c.customer_id)\
+            .options(joinedload(models.Customer.assigned_user))\
+            .filter(models.Customer.id == cid).first()
+            
+    if row:
+        c, cnt, exp = row
+        c.contract_count = cnt or 0
+        c.nearest_expiry = exp
+        return c
+    return None
 
 
-def create_customer(db: Session, data: schemas.CustomerCreate) -> models.Customer:
+def create_customer(db: Session, data: schemas.CustomerCreate, company_id: int, assigned_user_id: int) -> models.Customer:
     expiry = _compute_expiry(data.contract_date, data.contract_months)
     row = models.Customer(
+        company_id=company_id,
+        assigned_user_id=assigned_user_id,
         name=data.name,
         contact=data.contact,
         region=data.region,
@@ -206,6 +324,32 @@ def create_customer(db: Session, data: schemas.CustomerCreate) -> models.Custome
     db.add(row)
     db.flush() # get row.id without committing
     
+    # 2D.2 Dual-write (Transactional): Create Contract row if any contract info is provided
+    has_contract = any([
+        data.contract_car, data.contract_date, data.contract_months, 
+        data.expiry_date, data.capital, data.product_type
+    ])
+    
+    if has_contract:
+        from app.models import Contract
+        contract = Contract(
+            company_id=company_id,
+            customer_id=row.id,
+            assigned_user_id=assigned_user_id,
+            legacy_origin_customer_id=None,  # 2D.2 Rule: NULL for new contracts
+            vehicle_model=data.contract_car,
+            contract_date=data.contract_date,
+            term_months=data.contract_months,
+            expiry_date=expiry,
+            capital=data.capital,
+            product_type=data.product_type,
+            supplies_work=data.supplies_work,
+            insurance_active=data.insurance_active,
+            dealer_info=data.dealer_info,
+            status="ACTIVE"
+        )
+        db.add(contract)
+
     if data.initial_consultation:
         consultation = models.Consultation(customer_id=row.id, notes=data.initial_consultation)
         db.add(consultation)
@@ -258,6 +402,9 @@ def add_consultation(db: Session, cid: int,
     return row
 
 
+def get_consultation(db: Session, log_id: int) -> Optional[models.Consultation]:
+    return db.query(models.Consultation).filter_by(id=log_id).first()
+
 def delete_consultation(db: Session, log_id: int) -> bool:
     row = db.query(models.Consultation).filter_by(id=log_id).first()
     if not row:
@@ -285,19 +432,29 @@ def _format_message_tasks(tasks: List[models.MessageTask]) -> List[schemas.Messa
         results.append(out)
     return results
 
-def get_pending_message_tasks(db: Session) -> List[schemas.MessageTaskOut]:
+def get_pending_message_tasks(db: Session, company_id: int, assigned_user_id: Optional[int] = None) -> List[schemas.MessageTaskOut]:
     now = datetime.datetime.utcnow()
-    tasks = db.query(models.MessageTask).filter(
+    q = db.query(models.MessageTask).join(models.Customer).filter(
+        models.Customer.company_id == company_id,
         models.MessageTask.status == "pending",
         or_(
             models.MessageTask.scheduled_at == None,
             models.MessageTask.scheduled_at <= now
         )
-    ).order_by(models.MessageTask.created_at.asc()).all()
+    )
+    if assigned_user_id is not None:
+        q = q.filter(models.Customer.assigned_user_id == assigned_user_id)
+    tasks = q.order_by(models.MessageTask.created_at.asc()).all()
     return _format_message_tasks(tasks)
 
-def cancel_pending_message_tasks(db: Session) -> int:
-    tasks = db.query(models.MessageTask).filter_by(status="pending").all()
+def cancel_pending_message_tasks(db: Session, company_id: int, assigned_user_id: Optional[int] = None) -> int:
+    q = db.query(models.MessageTask).join(models.Customer).filter(
+        models.Customer.company_id == company_id,
+        models.MessageTask.status == "pending"
+    )
+    if assigned_user_id is not None:
+        q = q.filter(models.Customer.assigned_user_id == assigned_user_id)
+    tasks = q.all()
     count = 0
     for t in tasks:
         t.status = "failed"
@@ -306,9 +463,17 @@ def cancel_pending_message_tasks(db: Session) -> int:
     db.commit()
     return count
 
-def get_recent_message_tasks(db: Session, limit: int = 200) -> List[schemas.MessageTaskOut]:
-    tasks = db.query(models.MessageTask).order_by(models.MessageTask.created_at.desc()).limit(limit).all()
+def get_recent_message_tasks(db: Session, company_id: int, assigned_user_id: Optional[int] = None, limit: int = 200) -> List[schemas.MessageTaskOut]:
+    q = db.query(models.MessageTask).join(models.Customer).filter(
+        models.Customer.company_id == company_id
+    )
+    if assigned_user_id is not None:
+        q = q.filter(models.Customer.assigned_user_id == assigned_user_id)
+    tasks = q.order_by(models.MessageTask.created_at.desc()).limit(limit).all()
     return _format_message_tasks(tasks)
+
+def get_message_task(db: Session, task_id: int) -> Optional[models.MessageTask]:
+    return db.query(models.MessageTask).filter_by(id=task_id).first()
 
 def update_message_task_status(db: Session, task_id: int, status: str) -> Optional[models.MessageTask]:
     row = db.query(models.MessageTask).filter_by(id=task_id).first()
@@ -318,3 +483,145 @@ def update_message_task_status(db: Session, task_id: int, status: str) -> Option
     db.commit()
     db.refresh(row)
     return row
+
+# â”€â”€ Contracts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+def list_contracts(db: Session, company_id: int, customer_id: Optional[int] = None,
+                   assigned_user_id: Optional[int] = None, skip: int = 0, limit: int = 500) -> List[models.Contract]:
+    q = db.query(models.Contract).options(joinedload(models.Contract.assigned_user)).filter(models.Contract.company_id == company_id)
+    if customer_id is not None:
+        q = q.filter(models.Contract.customer_id == customer_id)
+    if assigned_user_id is not None:
+        q = q.filter(models.Contract.assigned_user_id == assigned_user_id)
+    return q.order_by(models.Contract.id.desc()).offset(skip).limit(limit).all()
+
+def get_contract(db: Session, contract_id: int) -> Optional[models.Contract]:
+    return db.query(models.Contract).filter(models.Contract.id == contract_id).first()
+
+def _build_contract_row(data: schemas.ContractBase, company_id: int, customer_id: int, assigned_user_id: int) -> models.Contract:
+    row = models.Contract(
+        company_id=company_id,
+        customer_id=customer_id,
+        assigned_user_id=assigned_user_id,
+        vehicle_model=data.vehicle_model,
+        product_type=data.product_type,
+        capital=data.capital,
+        contract_date=data.contract_date,
+        term_months=data.term_months,
+        expiry_date=data.expiry_date,
+        dealer_info=data.dealer_info,
+        insurance_active=data.insurance_active,
+        supplies_work=data.supplies_work,
+        estimate_image=data.estimate_image,
+        status=data.status,
+        memo=data.memo,
+        monthly_payment=data.monthly_payment
+    )
+    return row
+
+def create_contract(db: Session, data: schemas.ContractCreate, company_id: int, assigned_user_id: int) -> models.Contract:
+    row = _build_contract_row(data, company_id, data.customer_id, assigned_user_id)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def update_contract(db: Session, contract_id: int, data: schemas.ContractUpdate) -> Optional[models.Contract]:
+    row = get_contract(db, contract_id)
+    if not row:
+        return None
+    patch = data.model_dump(exclude_unset=True)
+    for k, v in patch.items():
+        setattr(row, k, v)
+        
+    if "contract_date" in patch or "term_months" in patch:
+        row.expiry_date = _compute_expiry(row.contract_date, row.term_months)
+        
+    row.updated_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+# ¦¡¦¡ Opportunity ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+
+def list_opportunities(db: Session, company_id: int, customer_id: Optional[int] = None,
+                     assigned_user_id: Optional[int] = None, skip: int = 0, limit: int = 500) -> List[models.Opportunity]:
+    q = db.query(models.Opportunity).options(joinedload(models.Opportunity.assigned_user)).filter(models.Opportunity.company_id == company_id)
+    if customer_id is not None:
+        q = q.filter(models.Opportunity.customer_id == customer_id)
+    if assigned_user_id is not None:
+        q = q.filter(models.Opportunity.assigned_user_id == assigned_user_id)
+    return q.order_by(models.Opportunity.id.desc()).offset(skip).limit(limit).all()
+
+def get_opportunity(db: Session, opportunity_id: int) -> Optional[models.Opportunity]:
+    return db.query(models.Opportunity).filter(models.Opportunity.id == opportunity_id).first()
+
+def create_opportunity(db: Session, data: schemas.OpportunityCreate, company_id: int, assigned_user_id: int) -> models.Opportunity:
+    row = models.Opportunity(
+        company_id=company_id,
+        customer_id=data.customer_id,
+        assigned_user_id=data.assigned_user_id or assigned_user_id,
+        title=data.title,
+        purpose=data.purpose,
+        notes=data.notes,
+        status=models.OpportunityStatus.NEW.value
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def update_opportunity(db: Session, opportunity_id: int, data: schemas.OpportunityUpdate) -> Optional[models.Opportunity]:
+    row = get_opportunity(db, opportunity_id)
+    if not row:
+        return None
+    patch = data.model_dump(exclude_unset=True)
+    for k, v in patch.items():
+        setattr(row, k, v)
+        
+    row.updated_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+# ¦¡¦¡ Quotes ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+
+def get_quote(db: Session, quote_id: int) -> Optional[models.Quote]:
+    return db.query(models.Quote).filter(models.Quote.id == quote_id).first()
+
+def list_quotes(db: Session, company_id: int, opportunity_id: Optional[int] = None, assigned_user_id: Optional[int] = None, product_type: Optional[str] = None) -> List[models.Quote]:
+    q = db.query(models.Quote).filter(models.Quote.company_id == company_id)
+    if opportunity_id:
+        q = q.filter(models.Quote.opportunity_id == opportunity_id)
+    if assigned_user_id:
+        q = q.filter(models.Quote.assigned_user_id == assigned_user_id)
+    if product_type:
+        q = q.filter(models.Quote.product_type == product_type)
+    return q.order_by(models.Quote.id.desc()).all()
+
+def create_quote(db: Session, data: schemas.QuoteCreate, company_id: int, assigned_user_id: int) -> models.Quote:
+    row = models.Quote(
+        **data.model_dump(exclude={'assigned_user_id', 'opportunity_id'}),
+        company_id=company_id,
+        opportunity_id=data.opportunity_id,
+        assigned_user_id=assigned_user_id
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def update_quote(db: Session, quote_id: int, data: schemas.QuoteUpdate) -> Optional[models.Quote]:
+    row = get_quote(db, quote_id)
+    if not row:
+        return None
+    patch = data.model_dump(exclude_unset=True)
+    for k, v in patch.items():
+        setattr(row, k, v)
+    row.updated_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return row
+
