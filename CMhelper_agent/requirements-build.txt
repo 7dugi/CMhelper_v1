@@ -1,0 +1,2 @@
+# PyInstaller build-only requirement for packaging CMhelper_agent.exe
+pyinstaller>=6.0.0

@@ -27,8 +27,12 @@
 - Excel 고객 데이터 가져오기
 - 상담 메모 관리
 - 웹에서 메시지 작업 생성
-- Agent 수동 호출
-- Agent 대기열 불러오기
+- Agent 수동 호출 (프로토콜 launch `cmhelper://start`는 창만 실행)
+- Agent 메모리 전용 JWT 인증 (`CMhelper_agent/api_client.py`, `CMhelper_agent/agent.py`)
+- Agent 명시적 이메일/비밀번호 UI 로그인 및 비밀번호 제출 즉시 클리어
+- Agent 401/403 Fail-Closed 토큰 무효화 및 재로그인 요구
+- Agent 대기열 불러오기 / 발송 / 취소의 Bearer 토큰 인증 연동
+- 서버 상태 업데이트 성공 확인 후 로컬 성공 반영 (가짜 성공 방지)
 - 수동 발송 시작
 - 카카오톡 텍스트 발송
 - 이미지 발송
@@ -36,6 +40,8 @@
 - 예약 시간 저장
 - Agent 수동 실행 후 예약 시간이 지난 작업 조회 및 발송
 - pending / sent / failed 상태 처리
+- Agent PyInstaller 빌드 명세 (`requirements-build.txt`, `CMhelper_agent.spec` -> `CMhelper_agent.exe`)
+- Harness `cmhelper_pc_agent_auth` 검증 프로파일 (Agent 단위 테스트 및 격리 빌드 검증)
 
 ## [PARTIALLY VERIFIED]
 - 해상도별 좌표 안정성
@@ -63,7 +69,8 @@
 
 ## [EXCLUDED FROM CURRENT SCOPE]
 - JWT Refresh Token (Sprint B 이후 도입)
-- Windows Agent JWT 인증 (기존 API 유지, 향후 API Key 도입)
+- Agent 자동 로그인 / 비밀번호·JWT 디스크/레지스트리 영속화 / Credential Manager
+- Device Token / API Key 체계 (향후 별도 Architecture Gate 대상)
 - Agent 상시 실행
 - Windows Service
 - Tray Agent
