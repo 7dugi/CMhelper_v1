@@ -20,16 +20,16 @@
   - GET `/api/messages/history`
   - PUT `/api/messages/{task_id}/status` (상태값: pending, sent, failed)
 
-*인증 여부: 현재 위 API들은 인증 없이 사용됩니다.*
+*인증 여부: 현재 위 API들은 JWT 인증이 필요합니다. 서버는 현재 사용자 기준으로 회사별 데이터 범위와 USER 담당자 범위를 강제합니다.*
 
-## 2. Authentication API [PLANNED]
+## 2. Authentication API [IMPLEMENTED]
 - **POST `/api/auth/register`**: 초대 코드 기반 회원가입
 - **POST `/api/auth/login`**: 로그인 및 JWT 발급
   - *인증 방식:* Access Token 전용 (Refresh Token 미도입, Sprint B 이후 재검토)
-  - *토큰 보관:* 프론트엔드 SessionStorage 보관
+  - *토큰 보관:* 웹 프론트엔드는 SessionStorage 보관
   - *만료 시간:* 2시간 (2 hours)
 - **GET `/api/auth/me`**: 현재 로그인된 사용자 정보 조회 및 JWT 검증
-- **Windows Agent 예외**: 기존 Agent는 인증이 면제되며 위 1번의 기존 API를 그대로 사용합니다. (향후 API Key/Device Token 도입 예정)
+- **Windows Agent 연동 상태**: 메시지 API 인증 적용 이후 기존 Agent 소스는 아직 JWT를 전달하지 않아 인증된 메시지 API를 사용할 수 없습니다. 다음 Agent 인증 작업에서 기존 로그인 API를 사용해 Access Token을 실행 중 메모리에만 보관하고 모든 메시지 요청에 Bearer 토큰을 전달합니다. 비밀번호·토큰의 파일 저장 및 로그 출력은 금지합니다. Device Token은 향후 별도 Architecture Gate 대상입니다.
 
 ## 3. 향후 계획 API [PLANNED]
 - Heartbeat

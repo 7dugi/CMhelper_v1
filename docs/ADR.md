@@ -15,13 +15,20 @@
   - 복잡한 Refresh 로직 구현보다 B2B 도구에 맞는 핵심 인증 기능 우선 개발
   - Refresh Token 도입은 Sprint B 이후로 연기하여 제품 출시 일정을 단축
 
-### 2026-08-06 | Authentication: Windows Agent 인증 예외
+### 2026-08-06 | Authentication: Windows Agent 인증 예외 (폐기)
 - **주제:** Windows Agent 애플리케이션의 인증 처리
 - **선택:** 이번 Sprint에서 Agent는 JWT 인증 대상에서 제외하고 기존 API를 그대로 사용
 - **배제:** Agent에 웹과 동일한 JWT Auth 강제 적용
 - **결정 이유:**
   - 현재 Agent 구조를 대대적으로 변경하지 않기 위함
-  - 향후 멀티 회사/멀티 Agent 구조 도입 시 API Key 또는 Device Token 기반으로 안전하게 전환할 예정
+- 향후 멀티 회사/멀티 Agent 구조 도입 시 API Key 또는 Device Token 기반으로 안전하게 전환할 예정
+
+### 2026-08-26 | Authentication: Windows Agent 인증 정합성 복구 계획
+- **주제:** JWT 인증이 적용된 메시지 API와 기존 Windows Agent 간의 호환성
+- **선택:** 기존 메시지 API의 인증 예외를 복원하지 않는다. Windows Agent는 기존 `/api/auth/login`으로 받은 Access Token을 실행 중 메모리에만 보관하고, 메시지 API 요청마다 Bearer 토큰으로 전달한다.
+- **배제:** 인증 없는 메시지 API 재개방, Agent 소스·환경변수·로그에 비밀번호 또는 JWT 저장, 이번 작업에서 Device Token 체계 도입
+- **결정 이유:** 회사별 데이터 격리와 USER 담당자 범위를 약화하지 않으면서, 별도의 DB 마이그레이션이나 신규 인증 API 없이 현재 Agent의 최소 호환성을 복구할 수 있다. Token 만료 시에는 발송을 중단하고 재로그인을 요구한다.
+- **상태:** 사용자 승인 완료, 구현·검증 전
 ### 2026-08-06 | Development Gate 도입
 - **주제:** Development Gate 도입
 - **선택:** Standard Gate + Architecture Gate 이중 절차
